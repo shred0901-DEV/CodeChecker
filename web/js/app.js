@@ -777,7 +777,11 @@ async function selectFinding(findingId) {
     const langClass = getLanguageClassByFilename(finding.file, isBinary);
     elements.detailCodeBlock.className = langClass;
     elements.detailCodeBlock.textContent = finding.code || '// コードが見つかりませんでした';
-    Prism.highlightElement(elements.detailCodeBlock);
+    try {
+        Prism.highlightElement(elements.detailCodeBlock);
+    } catch (prismErr) {
+        console.warn('Prism syntax highlighting failed:', prismErr);
+    }
 
     fetchAiExplanation(findingId);
 }
