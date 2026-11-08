@@ -7,11 +7,13 @@
 | **ランタイム** | Python | 3.10+ (Windows / macOS / Linux) |
 | **デスクトップGUI** | `pywebview` | WebベースのUIをネイティブウィンドウ（Edge WebView2 on Windows）で描画 |
 | **フロントエンド** | HTML5 / CSS3 / ES6+ | UIコンポーネント (フレームワーク非依存で軽量) |
-| **UIスタイル** | Tailwind CSS (CDN) | モダンでレスポンシブなダーク/ライト調デザイン |
-| **コード表示** | Prism.js / Marked.js | シンタックスハイライト、Markdownパース |
-| **静的解析エンジン** | `semgrep` (Python package / CLI) + 内蔵ルール + `pefile` | ソースコード (30+言語対応) および Windows PEバイナリ (EXE/DLL) 包括セキュリティ診断 |
-| **ローカルLLM** | Ollama REST API (`/api/generate`) | `http://localhost:11434` を通じた高速ローカル推論 |
+| **UIスタイル** | Tailwind CSS (ローカルバンドル) | 完全ローカル化されたモダンでレスポンシブなダーク調デザイン |
+| **アイコン & フォント** | FontAwesome 6 Free (ローカル) | WebフォントおよびCSSを完全ローカルバンドル |
+| **コード表示・パース** | Prism.js / Marked.js / DOMPurify | シンタックスハイライト、Markdownパース、DOMサニタイズ（全ローカル） |
+| **静的解析エンジン** | `semgrep` + 内蔵ルール + `pefile` | ソースコード (30+言語対応) および Windows PEバイナリ (EXE/DLL) 包括セキュリティ診断 |
+| **ローカルLLM** | Ollama REST API (`/api/generate`) | `http://localhost:11434` を通じたローカル推論 (VRAM即時解放対応) |
 | **AI連携** | Ollama (REST API) / Codex CLI (`subprocess` パイプライン) | ローカルLLMおよびOpenAI Codex CLIと連携 |
+| **自動テスト** | Python `unittest` | 40テストケースによる網羅的自動回帰テスト (所要時間 ~0.2秒) |
 
 ---
 
@@ -21,8 +23,8 @@ CodeChecker は以下のAI実行環境に対応しています：
 
 | プロバイダID | ツール名称 | 実行形式 | 備考 |
 | :--- | :--- | :--- | :--- |
-| **`ollama`** | **Ollama** (ローカルLLM) | REST API (`/api/generate`) | 完全オフライン動作。メモリ自動アンロード対応 |
-| **`codex`** | **Codex CLI** (OpenAI) | `codex exec --sandbox read-only --ephemeral --skip-git-repo-check -` | 引数リスト・`shell=False`、読み取り専用サンドボックス、セッション一時化による安全な非対話実行 |
+| **`ollama`** | **Ollama** (ローカルLLM) | REST API (`/api/generate`) | 完全オフライン動作。メモリ・VRAM自動解放（`keep_alive: 0`）対応 |
+| **`codex`** | **Codex CLI** (OpenAI) | `codex exec --sandbox read-only --ephemeral --skip-git-repo-check -` | 引数リスト・`shell=False`、読み取り専用サンドボックス、セッション一時化、隔離ディレクトリ実行 |
 | **`disabled`**| **AI無効 (高速)** | N/A | 静的解析のみを瞬時に実行 |
 
 ### サブプロセス制御 & セキュリティ仕様
@@ -32,6 +34,9 @@ CodeChecker は以下のAI実行環境に対応しています：
   - `--sandbox read-only` を必須指定し、ファイルの新規作成・書き込みやローカルシェルコマンドの実行を強制ブロック。
   - `--ephemeral` によりセッション履歴やロールアウトファイルをローカルディスクに残さずメモリ上のみで完結。
   - プロセス起動時のカレントワーキングディレクトリ（`cwd`）を `.temp/cli_sandbox/` に隔離し、CodeChecker 本体のコードベースへの不必要なアクセスや探索を物理的に遮断。
+  - プロンプトにてツール実行やファイル編集の禁止を明示。
+- **Ollama のリソース管理**:
+  - プロバイダ切り替え時およびアプリ終了時に `keep_alive: 0` を送信し、VRAM/RAMをOSへ即時返還。
 
 ---
 
@@ -83,7 +88,7 @@ Windows PEバイナリ（`.exe`, `.dll`, `.sys`, `.ocx`）に対し、`pefile` �
 - **コードプレビューのハイライト言語動的切替 (UX-02)**:
   - 対象ファイルの拡張子（`.py`, `.js`, `.ts`, `.cpp`, `.cs`, `.go`, `.java` 等）に応じて Prism 言語クラスを動的切替。バイナリ指摘時は `language-none` を適用。
 - **完全オフライン動作保証（閉域網対応 ARC-01）**:
-  - Tailwind Play CDN, FontAwesome, Prism.js, Marked.js, DOMPurify の全外部アセットを `web/vendor/` にローカルバンドル。外部ネットワーク未接続環境でも同一のダークテーマ・アイコン・ハイライト・Markdown表示を提供。
+  - Tailwind CSS, FontAwesome, Prism.js, Marked.js, DOMPurify の全外部アセットを `web/vendor/` にローカルバンドル。外部ネットワーク未接続環境でも同一のダークテーマ・アイコン・ハイライト・Markdown表示を提供。
 
 ---
 
@@ -98,10 +103,18 @@ Windows PEバイナリ（`.exe`, `.dll`, `.sys`, `.ocx`）に対し、`pefile` �
   - `.json`, `.csv`, `.log`, `.sqlite`, `.xml`, `.txt`, `.md` などのデータファイル・ログを内蔵ルール正規表現スキャンから除外し、走査速度を大幅に向上。
 - **アプリ内一時フォルダ (`.temp/`)**:
   - ZIPアーカイブ展開先をOSの `%TEMP%` ではなく、アプリディレクトリ直下の `.temp/` 配下に隔離。
-  - スキャン実行時およびアプリ起動・終了時に `.temp/` 配下の作業ファイルを自動クリーンアップ。
-- **アプリ内設定保存 (`settings.json`)**:
-  - CLIコマンド設定やモデル選択情報をアプリディレクトリ直下の `settings.json` に自己完結保存。
-  - レジストリや Windows の `AppData` を一切汚さず、フォルダごと移動・削除するだけで完結するクリーンなポータブル構成を実現。
-- **Ollama VRAM/RAM リソースの即時解放**:
-  - アプリ終了時（`finally` 節および `atexit` ハンドラ）や、Ollama から別プロバイダへ切り替えた際に、Ollama へアンロードリクエスト（`keep_alive: 0`）を自動送信。
-  - アプリ終了後に GPU VRAM やシステム RAM が占有されたまま残る現象を完全に防止。
+  - スキャン開始時・終了時・起動時に古い一時フォルダを自動消去し、リソースリークを防止。
+
+---
+
+## 5. 自動回帰テスト仕様
+
+- **テストフレームワーク**: Python 標準 `unittest`
+- **テストスイート配置**: `tests/`
+  - `test_engine.py`: スキャンエンジン、重複排除、PE全指摘検出、CWE日本語タイトルマッピング、一時フォルダ管理
+  - `test_builtin_rules.py`: 内蔵ルール検知精度、誤検知除外（安全なリスト引数コマンド等）
+  - `test_file_manager.py`: ファイル収集ホワイトリスト、Zip Slip / Zip Bomb 防御、クリーンアップ
+  - `test_ai_manager.py`: キャッシュ機能、Ollama / Codex 切替、Codex セキュリティフラグ（`--sandbox read-only`、`--ephemeral`、作業ディレクトリ隔離）
+  - `test_api.py`: PyWebView API、エディタ起動、エクスプローラー起動
+  - `test_web_offline.py`: ローカルWebアセットの完全性、外部CDN参照の完全排除検証
+- **実行結果**: 40/40 テスト PASS (所要時間 約0.2秒)
