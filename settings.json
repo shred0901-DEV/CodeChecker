@@ -6,7 +6,7 @@
   },
   "clis": {
     "codex": {
-      "command": "codex exec --skip-git-repo-check -",
+      "command": "codex exec --sandbox read-only --ephemeral --skip-git-repo-check -",
       "selected_model": "default"
     }
   }

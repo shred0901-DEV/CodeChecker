@@ -370,8 +370,8 @@
                     </div>
                     <div class="grid grid-cols-3 gap-2">
                         <div class="col-span-2">
-                            <label class="block text-slate-400 mb-1">実行コマンド (自動で非対話 exec モードで実行されます)</label>
-                            <input id="input-cli-codex" type="text" value="codex exec --skip-git-repo-check -" class="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-slate-200 font-mono text-xs focus:outline-none focus:border-indigo-500">
+                            <label class="block text-slate-400 mb-1">実行コマンド (読み取り専用サンドボックスで安全に実行されます)</label>
+                            <input id="input-cli-codex" type="text" value="codex exec --sandbox read-only --ephemeral --skip-git-repo-check -" class="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-slate-200 font-mono text-xs focus:outline-none focus:border-indigo-500">
                         </div>
                         <div>
                             <label class="block text-slate-400 mb-1">指定モデル (手入力可)</label>

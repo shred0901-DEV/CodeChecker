@@ -22,12 +22,16 @@ CodeChecker は以下のAI実行環境に対応しています：
 | プロバイダID | ツール名称 | 実行形式 | 備考 |
 | :--- | :--- | :--- | :--- |
 | **`ollama`** | **Ollama** (ローカルLLM) | REST API (`/api/generate`) | 完全オフライン動作。メモリ自動アンロード対応 |
-| **`codex`** | **Codex CLI** (OpenAI) | `codex exec --skip-git-repo-check -` | 引数リスト・`shell=False` による安全な非対話パイプライン実行 |
+| **`codex`** | **Codex CLI** (OpenAI) | `codex exec --sandbox read-only --ephemeral --skip-git-repo-check -` | 引数リスト・`shell=False`、読み取り専用サンドボックス、セッション一時化による安全な非対話実行 |
 | **`disabled`**| **AI無効 (高速)** | N/A | 静的解析のみを瞬時に実行 |
 
 ### サブプロセス制御 & セキュリティ仕様
 - Windows環境におけるサブプロセス実行時、`creationflags=subprocess.CREATE_NO_WINDOW`（`0x08000000`）を付与し、CLIやSemgrepの実行時に黒いコンソール画面が一瞬表示される現象を完全抑制。
 - プロンプトは標準入力（stdin）経由で安全にパイプ通信し、コマンドライン引数は `shell=False` のリスト形式で起動することでOSコマンドインジェクションを完全排除。
+- **Codex CLI の安全隔離実行 (SEC-CLI)**:
+  - `--sandbox read-only` を必須指定し、ファイルの新規作成・書き込みやローカルシェルコマンドの実行を強制ブロック。
+  - `--ephemeral` によりセッション履歴やロールアウトファイルをローカルディスクに残さずメモリ上のみで完結。
+  - プロセス起動時のカレントワーキングディレクトリ（`cwd`）を `.temp/cli_sandbox/` に隔離し、CodeChecker 本体のコードベースへの不必要なアクセスや探索を物理的に遮断。
 
 ---
 

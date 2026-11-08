@@ -106,5 +106,32 @@ class TestAIManager(unittest.TestCase):
         self.ai.clear_cache()
         self.assertEqual(len(self.ai._cache), 0)
 
+    # ==========================================================
+    # 5. Codex CLI のセキュリティ構成検証 (SEC-CLI)
+    # ==========================================================
+    def test_codex_cli_security_flags(self):
+        """Codex CLI に読み取り専用サンドボックス & ephemeral フラグが設定・保証されていること"""
+        status = self.ai.get_status()
+        codex_profile = status["clis"].get("codex", {})
+        command = codex_profile.get("command", "")
+
+        # 読み取り専用サンドボックスの検証 (不必要なファイル書き込みやシェル実行の遮断)
+        self.assertIn("--sandbox read-only", command, "Codex コマンドに --sandbox read-only が指定されていません")
+        # セッション一時化の検証 (ディスクへの履歴残存防止)
+        self.assertIn("--ephemeral", command, "Codex コマンドに --ephemeral が指定されていません")
+        # 非対話実行 & Gitチェック除外の検証
+        self.assertIn("exec", command)
+        self.assertIn("--skip-git-repo-check", command)
+
+    def test_codex_isolated_working_directory(self):
+        """CLI実行時の作業ディレクトリがプロジェクトルートから隔離されていること"""
+        cli_manager = self.ai.cli_manager
+        isolated_cwd = cli_manager._get_isolated_cli_cwd()
+        self.assertTrue(os.path.exists(isolated_cwd), "隔離作業ディレクトリが存在しません")
+        # CodeChecker のルートと一致しないこと
+        app_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        self.assertNotEqual(os.path.abspath(isolated_cwd), os.path.abspath(app_dir), "作業ディレクトリがプロジェクトルートになっています")
+        self.assertIn(".temp", isolated_cwd, "作業ディレクトリが .temp 配下に配置されていません")
+
 if __name__ == "__main__":
     unittest.main()

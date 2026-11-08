@@ -8,15 +8,17 @@ from typing import Dict, Any, List, Optional
 from .base import BaseLLMProvider
 from .prompts import create_remediation_prompt
 
-# Codex CLI デフォルト定義
+# Codex CLI デフォルト定義 (SEC-CLI: 読み取り専用サンドボックス & ephemeral 必須化)
 CLI_PROFILES = {
     "codex": {
         "id": "codex",
         "name": "Codex CLI",
-        # ★Codexは対話モードだと "stdin is not a terminal" になるため、exec --skip-git-repo-check - が必須
-        "command": "codex exec --skip-git-repo-check -",
-        "default_command": "codex exec --skip-git-repo-check -",
-        "description": "Codex CLI (非対話 exec モード)",
+        # ★Codexは対話モードだと "stdin is not a terminal" になるため exec - が必須
+        # ★ファイルの意図しない編集・コマンド実行を防ぐため --sandbox read-only を必須化
+        # ★セッション履歴やロールアウトをディスクに残さないため --ephemeral を指定
+        "command": "codex exec --sandbox read-only --ephemeral --skip-git-repo-check -",
+        "default_command": "codex exec --sandbox read-only --ephemeral --skip-git-repo-check -",
+        "description": "Codex CLI (非対話 read-only exec モード)",
         "selected_model": "default",
         "model_flag": "--model",
         "suggested_models": ["default", "gpt-4o", "gpt-4o-mini", "o3-mini", "o1"]
@@ -30,6 +32,18 @@ class DedicatedCLIProvider(BaseLLMProvider):
         self.profiles: Dict[str, Dict[str, Any]] = {}
         for key, val in CLI_PROFILES.items():
             self.profiles[key] = dict(val)
+
+    def _get_isolated_cli_cwd(self) -> str:
+        """CLI実行用の空の隔離作業ディレクトリを取得・作成 (CodeCheckerルートのファイルアクセス保護)"""
+        try:
+            from ..scanner.file_manager import get_temp_dir
+            temp_root = get_temp_dir()
+        except Exception:
+            temp_root = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), ".temp")
+
+        sandbox_dir = os.path.join(temp_root, "cli_sandbox")
+        os.makedirs(sandbox_dir, exist_ok=True)
+        return sandbox_dir
 
     def _resolve_executable(self, cmd_name: str) -> Optional[str]:
         """システムのPATHまたは一般的なインストール場所から実行可能ファイルを解決"""
@@ -147,13 +161,20 @@ class DedicatedCLIProvider(BaseLLMProvider):
         selected_model = profile.get("selected_model", "default")
         model_flag = profile.get("model_flag", "--model")
 
-        # ★Codex 特有の正規化 (ユーザーが単に "codex" と設定していても自動で非対話 exec モードにする)
+        # ★Codex 特有の正規化 (非対話 exec、read-only サンドボックス、ephemeral、Gitチェック除外を自動保証)
         if cli_id == "codex":
-            # "exec" が含まれていなければ非対話モードフラグを付与
             if "exec" not in raw_cmd:
-                raw_cmd = f"{raw_cmd} exec --skip-git-repo-check -"
-            elif "--skip-git-repo-check" not in raw_cmd:
-                raw_cmd = raw_cmd.replace("exec", "exec --skip-git-repo-check")
+                raw_cmd = f"{raw_cmd} exec --sandbox read-only --ephemeral --skip-git-repo-check -"
+            else:
+                # 読み取り専用サンドボックスの保証 (意図しないファイル書き換え・コマンド実行をブロック)
+                if "--sandbox" not in raw_cmd:
+                    raw_cmd = raw_cmd.replace("exec", "exec --sandbox read-only")
+                # セッション履歴のディスク残存防止
+                if "--ephemeral" not in raw_cmd:
+                    raw_cmd = raw_cmd.replace("exec", "exec --ephemeral")
+                # 非Gitディレクトリ実行の許容
+                if "--skip-git-repo-check" not in raw_cmd:
+                    raw_cmd = raw_cmd.replace("exec", "exec --skip-git-repo-check")
             if not raw_cmd.endswith("-") and "{prompt}" not in raw_cmd:
                 raw_cmd = f"{raw_cmd} -"
 
@@ -180,6 +201,9 @@ class DedicatedCLIProvider(BaseLLMProvider):
 
         creation_flags = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
 
+        # CLI実行用の空の隔離作業ディレクトリを取得 (CodeCheckerルートのファイルアクセス保護)
+        isolated_cwd = self._get_isolated_cli_cwd()
+
         # 方式1: コマンドに {prompt} が明示されている場合
         if any("{prompt}" in t for t in cmd_tokens):
             args = []
@@ -192,6 +216,7 @@ class DedicatedCLIProvider(BaseLLMProvider):
             process = subprocess.Popen(
                 args,
                 shell=False,
+                cwd=isolated_cwd,
                 stdin=subprocess.DEVNULL,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -206,6 +231,7 @@ class DedicatedCLIProvider(BaseLLMProvider):
             process = subprocess.Popen(
                 cmd_tokens,
                 shell=False,
+                cwd=isolated_cwd,
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,

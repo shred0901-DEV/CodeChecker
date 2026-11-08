@@ -67,6 +67,7 @@ CodeChecker は、ソースコードおよび Windows PE バイナリ（EXE/DLL�
 | **UX-01** | **Enhancement** | Confirmed | `web/js/app.js`, `codechecker/api.py` | バイナリ指摘時の「ファイルの場所を開く」（OSエクスプローラー連携）対応 | **完了 (Phase 3)** |
 | **UX-02** | **Enhancement** | Confirmed | `web/index.html`, `web/js/app.js` | コードプレビュー欄のシンタックスハイライト言語自動切替対応 | **完了 (Phase 3)** |
 | **BUG-06** | **High** | Confirmed | `web/index.html`<br>`web/js/app.js` | Prism依存欠落による例外発生でAI解説生成が停止する不具合の修正 | **完了 (Phase 3)** |
+| **SEC-CLI**| **High** | Confirmed | `ai/cli_provider.py`<br>`prompts.py`, `settings.json` | Codex CLI における読み取り専用サンドボックス強制、セッション一時化、作業ディレクトリ隔離 | **完了 (SEC-CLI)** |
 | **ARC-02** | **Low** | Confirmed | `codechecker/app.py`, `codechecker/api.py` | PyWebView 内部非公開 API（`_dnd_state`）への直接依存 | 現状維持推奨 |
 
 ---
