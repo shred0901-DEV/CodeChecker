@@ -34,8 +34,9 @@ env/
 # CodeChecker Runtime Temporary Directory
 .temp/
 
-# Build Artifacts (scripts/build_release.py で自動生成される配布用パッケージ)
+# Build Artifacts (scripts/build_release.py / build_public_release.py で自動生成される配布用パッケージ)
 release/
+release_public/
 
 # OS / Editor Files
 .DS_Store

@@ -5,9 +5,9 @@
 
 ---
 
-## 2. 現行の配布ディレクトリ構成 (`release/`)
+## 2. 開発・デバッグ用配布パッケージ (`release/`)
 
-現行の配布パッケージは、Python 3.10+ がインストールされている環境を対象とした完全ポータブルパッケージです。
+Python 3.10+ がインストールされている環境を対象とした動作確認・デバッグ用ポータブルパッケージです。
 以下のスクリプトを実行することで、最新のソースコードおよびアセットが `release/` ディレクトリに自動同期されます。
 
 ```bash
@@ -29,6 +29,38 @@ release/
 └── samples/             # 動作検証・学習用サンプルコード
     ├── sample_vulnerable.py
     └── sample_vulnerable.zip
+```
+
+---
+
+## 2.1 完全自己完結・ポータブル配布パッケージ (`release_public/` - 案A)
+
+Python の事前インストールが一切不要な、完全自己完結型の配布用パッケージです。
+公式の Windows x86-64 Embeddable Python を内部に同梱し、必要な全依存ライブラリがあらかじめ組み込まれています。
+
+以下のビルドスクリプトを実行することで、ワンクリックで `release_public/` を自動生成できます。
+
+```bash
+python scripts/build_public_release.py
+```
+
+### ディレクトリ構成
+```text
+release_public/
+├── python/              # Windows x86-64 Embeddable Python (3.10.11)
+│   ├── python.exe       # 同梱Pythonインタプリタ
+│   ├── python310._pth   # site-packages 有効化パッチ適用済み
+│   └── Lib/site-packages/ # pywebview, semgrep, pefile, requests 等の全ライブラリ
+├── run.bat              # 同梱Pythonを相対パスで呼び出す起動バッチ
+├── run_silent.vbs       # 黒い画面を出さずに直接起動する VBScript
+├── README.txt           # 利用者向け説明書 (Python不要の案内)
+├── main.py              # アプリ起動エントリーポイント
+├── settings.json        # ポータブル設定ファイル
+├── SECURITY_REPORT.md   # アプリ安全性レポート
+├── codechecker/         # アプリケーションソースコード
+├── web/                 # 完全ローカルWebアセット
+├── docs/                # ドキュメント一式
+└── samples/             # 動作検証・学習用サンプルコード (py, zip, exe, dll)
 ```
 
 ---
