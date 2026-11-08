@@ -1,0 +1,13 @@
+{
+  "active_provider": "ollama",
+  "ollama": {
+    "host": "http://localhost:11434",
+    "selected_model": "gemma4:12b-it-q4_K_M"
+  },
+  "clis": {
+    "codex": {
+      "command": "codex exec --skip-git-repo-check -",
+      "selected_model": "default"
+    }
+  }
+}

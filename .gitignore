@@ -1,0 +1,47 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Pytest / Mypy / Coverage
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Virtual Environments
+.venv/
+venv/
+ENV/
+env/
+
+# CodeChecker Runtime Temporary Directory
+.temp/
+
+# Build Artifacts (scripts/build_release.py で自動生成される配布用パッケージ)
+release/
+
+# OS / Editor Files
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+*.swp
+*.swo

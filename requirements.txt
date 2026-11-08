@@ -1,0 +1,6 @@
+pywebview>=6.2.1
+semgrep>=1.183.0
+requests>=2.28.0
+PyYAML>=6.0
+pefile>=2024.8.26
+

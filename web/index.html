@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="ja" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CodeChecker</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Prism.js -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-javascript.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-typescript.min.js"></script>
+    <!-- Marked.js (Markdown parser) -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <!-- DOMPurify (HTML Sanitizer) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="css/style.css">
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#eef2ff',
+                            500: '#6366f1',
+                            600: '#4f46e5',
+                            700: '#4338ca',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-slate-950 text-slate-100 h-screen flex flex-col overflow-hidden">
+
+    <!-- トップヘッダー -->
+    <header class="h-14 border-b border-slate-800 bg-slate-900/80 backdrop-blur px-5 flex items-center justify-between shrink-0">
+        <div class="flex items-center gap-3">
+            <div class="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center text-white shadow-lg shadow-indigo-500/30">
+                <i class="fa-solid fa-shield-halved text-base"></i>
+            </div>
+            <h1 class="text-base font-bold tracking-tight text-white flex items-center gap-2">
+                CodeChecker
+                <span class="text-xs px-2 py-0.5 rounded bg-slate-800 text-slate-400 font-normal">v1.0.0</span>
+                <span class="text-xs text-slate-400 font-normal ml-2" style="word-spacing: 0.25rem;">Developed by shred0901</span>
+            </h1>
+        </div>
+        <div class="text-xs text-slate-500 font-medium">
+            <i class="fa-solid fa-shield-virus mr-1 text-slate-600"></i>ソースコード脆弱性診断 & AI修正提案
+        </div>
+    </header>
+
+    <!-- メインコンテンツ -->
+    <div class="flex-1 flex flex-col overflow-hidden p-4 gap-4">
+
+        <!-- ターゲット選択 & スキャン起動バー -->
+        <div class="bg-slate-900/60 border border-slate-800 rounded-xl p-4 flex flex-col md:flex-row items-center gap-4 shrink-0 shadow-sm w-full min-w-0">
+            <div id="drop-zone" class="flex-1 min-w-0 w-full border-2 border-dashed border-slate-700 hover:border-indigo-500/60 rounded-lg p-3 flex items-center justify-between gap-3 bg-slate-950/40 transition cursor-pointer">
+                <div class="flex-1 min-w-0 flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-lg bg-slate-800/80 flex items-center justify-center text-indigo-400 shrink-0">
+                        <i class="fa-regular fa-folder-open text-lg"></i>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <div id="selected-path-text" class="text-xs font-mono text-slate-300 truncate" title="フォルダ、ZIP、またはEXE/DLLファイルをドラッグ＆ドロップ、または選択">
+                            フォルダ、ZIP、またはEXE/DLLファイルをドラッグ＆ドロップ、または選択
+                        </div>
+                        <div class="text-[11px] text-slate-500 truncate">
+                            Python, JS/TS, Java, Go, C/C++, PHP, etc. ＋ Windows EXE/DLL (包括バイナリ診断)
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-2 shrink-0">
+                    <button id="btn-select-folder" class="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs rounded border border-slate-700 transition shrink-0 whitespace-nowrap">
+                        <i class="fa-solid fa-folder mr-1"></i>フォルダ選択
+                    </button>
+                    <button id="btn-select-zip" class="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs rounded border border-slate-700 transition shrink-0 whitespace-nowrap">
+                        <i class="fa-solid fa-file-shield mr-1"></i>ファイル選択 (ZIP/EXE)
+                    </button>
+                </div>
+            </div>
+
+            <button id="btn-start-scan" disabled class="w-full md:w-auto px-6 py-3.5 bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-800 disabled:text-slate-600 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-lg shadow-lg shadow-indigo-600/20 transition flex items-center justify-center gap-2 shrink-0 whitespace-nowrap">
+                <i class="fa-solid fa-bolt-lightning"></i>
+                <span>チェック開始</span>
+            </button>
+        </div>
+
+        <!-- スキャン進捗インジケータ -->
+        <div id="progress-container" class="hidden bg-slate-900 border border-slate-800 rounded-xl p-4 shrink-0">
+            <div class="flex justify-between items-center text-xs mb-2">
+                <span id="progress-message" class="text-indigo-400 font-medium animate-pulse-subtle">解析を実行中...</span>
+                <span id="progress-percent" class="text-slate-400 font-mono">0%</span>
+            </div>
+            <div class="w-full bg-slate-800 rounded-full h-2 overflow-hidden">
+                <div id="progress-bar-fill" class="bg-indigo-500 h-full rounded-full transition-all duration-300 w-0"></div>
+            </div>
+        </div>
+
+        <!-- 診断サマリーカード & 2ペイン表示エリア (スキャン実行中はぼかしオーバーレイでロック) -->
+        <div id="scan-results-area" class="relative flex-1 flex flex-col overflow-hidden min-h-0 gap-4">
+
+            <!-- スキャン中ロック用 ぼかしオーバーレイ -->
+            <div id="scan-lock-overlay" class="hidden absolute inset-0 bg-slate-950/60 backdrop-blur-md z-40 flex flex-col items-center justify-center gap-3 rounded-xl transition-all duration-300">
+                <div class="flex flex-col items-center gap-3 p-6 bg-slate-900/90 border border-slate-700/80 rounded-2xl shadow-2xl backdrop-blur-lg max-w-xs text-center">
+                    <div class="w-10 h-10 rounded-full border-4 border-indigo-500/20 border-t-indigo-500 animate-spin"></div>
+                    <div>
+                        <p class="text-sm font-bold text-white tracking-wide">診断を実行中...</p>
+                        <p class="text-xs text-slate-400 mt-1">結果が表示されるまでしばらくお待ちください</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 診断サマリーカード -->
+            <div class="grid grid-cols-4 gap-3 shrink-0 p-0.5">
+            <div id="filter-card-high" class="filter-card bg-slate-900/60 border border-red-500/20 hover:border-red-500/50 rounded-xl p-3 flex items-center justify-between cursor-pointer transition">
+                <div>
+                    <div class="text-[11px] font-semibold text-red-400 uppercase tracking-wider flex items-center gap-1.5">
+                        <span class="w-2 h-2 rounded-full bg-red-500"></span>危険度 [高]
+                    </div>
+                    <div id="count-high" class="text-2xl font-bold text-white mt-1">0</div>
+                </div>
+                <div class="w-9 h-9 rounded-lg bg-red-500/10 text-red-400 flex items-center justify-center">
+                    <i class="fa-solid fa-triangle-exclamation"></i>
+                </div>
+            </div>
+
+            <div id="filter-card-medium" class="filter-card bg-slate-900/60 border border-amber-500/20 hover:border-amber-500/50 rounded-xl p-3 flex items-center justify-between cursor-pointer transition">
+                <div>
+                    <div class="text-[11px] font-semibold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+                        <span class="w-2 h-2 rounded-full bg-amber-500"></span>危険度 [中]
+                    </div>
+                    <div id="count-medium" class="text-2xl font-bold text-white mt-1">0</div>
+                </div>
+                <div class="w-9 h-9 rounded-lg bg-amber-500/10 text-amber-400 flex items-center justify-center">
+                    <i class="fa-solid fa-circle-exclamation"></i>
+                </div>
+            </div>
+
+            <div id="filter-card-low" class="filter-card bg-slate-900/60 border border-emerald-500/20 hover:border-emerald-500/50 rounded-xl p-3 flex items-center justify-between cursor-pointer transition">
+                <div>
+                    <div class="text-[11px] font-semibold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
+                        <span class="w-2 h-2 rounded-full bg-emerald-500"></span>危険度 [低]
+                    </div>
+                    <div id="count-low" class="text-2xl font-bold text-white mt-1">0</div>
+                </div>
+                <div class="w-9 h-9 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center">
+                    <i class="fa-solid fa-circle-info"></i>
+                </div>
+            </div>
+
+            <div id="filter-card-all" class="filter-card bg-slate-900/60 border border-indigo-500/20 hover:border-indigo-500/50 rounded-xl p-3 flex items-center justify-between cursor-pointer transition">
+                <div>
+                    <div class="text-[11px] font-semibold text-indigo-400 uppercase tracking-wider flex items-center gap-1.5">
+                        <span class="w-2 h-2 rounded-full bg-indigo-500"></span>総検出数
+                    </div>
+                    <div id="count-total" class="text-2xl font-bold text-white mt-1">0</div>
+                </div>
+                <div class="w-9 h-9 rounded-lg bg-indigo-500/10 text-indigo-400 flex items-center justify-center">
+                    <i class="fa-solid fa-list-check"></i>
+                </div>
+            </div>
+        </div>
+
+        <!-- 2ペイン表示 -->
+        <div class="flex-1 grid grid-cols-12 gap-4 overflow-hidden min-h-0">
+
+            <!-- 左ペイン: 脆弱性一覧リスト -->
+            <div class="col-span-5 flex flex-col bg-slate-900/60 border border-slate-800 rounded-xl overflow-hidden">
+                <div class="h-14 px-3 border-b border-slate-800 flex items-center gap-2 shrink-0 bg-slate-900/40">
+                    <div class="relative flex-1">
+                        <i class="fa-solid fa-magnifying-glass absolute left-3 top-2.5 text-xs text-slate-500"></i>
+                        <input id="input-search" type="text" placeholder="ファイル名、CWE、キーワードで検索..." class="w-full bg-slate-950 border border-slate-800 rounded-lg pl-8 pr-3 py-1.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-indigo-500">
+                    </div>
+                    <span id="filtered-count" class="text-[11px] text-slate-400 shrink-0">0 件</span>
+                </div>
+
+                <div id="findings-list" class="flex-1 overflow-y-auto divide-y divide-slate-800/60 p-2 space-y-1">
+                    <div class="h-full flex flex-col items-center justify-center text-slate-500 p-6 text-center">
+                        <i class="fa-solid fa-magnifying-glass text-3xl mb-3 text-slate-700"></i>
+                        <p class="text-xs">スキャンを開始すると検出された脆弱性が一覧表示されます。</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 右ペイン: 脆弱性詳細 & AI修正提案 -->
+            <div id="detail-panel" class="col-span-7 flex flex-col bg-slate-900/60 border border-slate-800 rounded-xl overflow-hidden">
+                <!-- ツールバー: AIプロバイダ選択 & 設定 & レポート出力 (脆弱性詳細欄の上部に配置) -->
+                <div class="h-14 px-3.5 border-b border-slate-800 bg-slate-900/90 flex items-center justify-between gap-3 shrink-0">
+                    <div class="flex items-center gap-2">
+                        <!-- AIモード切替 -->
+                        <div class="flex items-center gap-2 bg-slate-800/90 border border-slate-700/70 rounded-lg px-2.5 py-1 text-xs">
+                            <i class="fa-solid fa-robot text-indigo-400"></i>
+                            <span class="text-slate-400">AIプロバイダ:</span>
+                            <select id="ai-provider-select" class="bg-transparent text-slate-200 font-medium focus:outline-none cursor-pointer">
+                                <option value="ollama" class="bg-slate-900">Ollama (ローカル)</option>
+                                <option value="codex" class="bg-slate-900">Codex CLI</option>
+                                <option value="disabled" class="bg-slate-900">AI無効 (高速)</option>
+                            </select>
+                            <div id="ai-status-indicator" class="w-2 h-2 rounded-full bg-emerald-500" title="状態"></div>
+                        </div>
+
+                        <!-- 設定ボタン -->
+                        <button id="btn-open-settings" class="p-1.5 text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded-lg text-xs transition border border-slate-700/60" title="AIプロバイダ & CLIモデル設定">
+                            <i class="fa-solid fa-gear"></i>
+                        </button>
+                    </div>
+
+                    <!-- レポート出力ボタン -->
+                    <div class="relative">
+                        <button id="btn-export" class="flex items-center gap-2 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium rounded-lg transition border border-slate-700">
+                            <i class="fa-solid fa-file-export text-slate-400"></i>
+                            <span>レポート出力</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div id="detail-placeholder" class="h-full flex flex-col items-center justify-center text-slate-500 p-8 text-center">
+                    <i class="fa-solid fa-code text-4xl mb-3 text-slate-700"></i>
+                    <p class="text-sm font-medium text-slate-400">脆弱性が選択されていません</p>
+                    <p class="text-xs text-slate-600 mt-1">左の一覧から指摘を選択すると、コード箇所の確認とAI解説・修正提案が表示されます。</p>
+                </div>
+
+                <div id="detail-content" class="hidden flex-1 flex flex-col overflow-hidden">
+                    <div class="p-4 border-b border-slate-800 bg-slate-900/90 shrink-0">
+                        <div class="flex items-start justify-between gap-3">
+                            <div>
+                                <div class="flex items-center gap-2 mb-1">
+                                    <span id="detail-severity-badge" class="px-2 py-0.5 rounded text-[11px] font-bold uppercase">HIGH</span>
+                                    <span id="detail-cwe-badge" class="px-2 py-0.5 rounded bg-slate-800 text-slate-400 text-[11px] font-mono">CWE-89</span>
+                                    <span id="detail-source-badge" class="text-[10px] text-slate-500 font-mono">semgrep</span>
+                                </div>
+                                <h2 id="detail-title" class="text-base font-bold text-white">SQLインジェクション</h2>
+                            </div>
+
+                            <button id="btn-request-ai" class="flex items-center gap-2 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-lg shadow-md transition shrink-0">
+                                <i class="fa-solid fa-wand-magic-sparkles"></i>
+                                <span>AI解説を再生成</span>
+                            </button>
+                        </div>
+
+                        <div class="mt-2 flex items-center justify-between text-xs text-slate-400 font-mono bg-slate-950/60 px-2.5 py-1 rounded border border-slate-800/80">
+                            <div class="flex items-center gap-2 truncate">
+                                <i class="fa-regular fa-file-code text-indigo-400"></i>
+                                <span id="detail-file-path" class="truncate">app/api/auth.py</span>
+                                <span class="text-slate-600">•</span>
+                                <span id="detail-line-number" class="text-indigo-400 font-semibold">L42</span>
+                            </div>
+                            <button id="btn-open-detail-file" class="ml-2 text-[11px] text-sky-400 hover:text-sky-300 flex items-center gap-1 shrink-0 font-sans" title="このファイルをエディタで開く">
+                                <i class="fa-regular fa-pen-to-square"></i>
+                                <span>エディタで開く</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="flex-1 overflow-y-auto p-4 space-y-4">
+                        <div>
+                            <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5 flex items-center gap-1.5">
+                                <i class="fa-solid fa-circle-exclamation text-indigo-400"></i>検出ツールの指摘概要
+                            </h3>
+                            <div id="detail-description" class="text-xs text-slate-300 bg-slate-950/40 p-3 rounded-lg border border-slate-800/80 leading-relaxed">
+                                ...
+                            </div>
+                        </div>
+
+                        <div>
+                            <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5 flex items-center gap-1.5">
+                                <i class="fa-solid fa-code text-indigo-400"></i>該当箇所のソースコード
+                            </h3>
+                            <div class="rounded-lg overflow-hidden border border-slate-800">
+                                <pre class="!m-0 text-xs"><code id="detail-code-block" class="language-python"></code></pre>
+                            </div>
+                        </div>
+
+                        <!-- AI解説 & 修正提案エリア (生成プロバイダ & モデル名バッジ付き) -->
+                        <div>
+                            <div class="flex items-center justify-between mb-1.5">
+                                <div class="flex items-center gap-2">
+                                    <h3 class="text-xs font-bold uppercase tracking-wider text-indigo-400 flex items-center gap-1.5">
+                                        <i class="fa-solid fa-robot"></i>AIによる解説 & 修正提案
+                                    </h3>
+                                    <span id="active-ai-badge" class="hidden text-[10px] font-mono font-medium text-indigo-300 bg-indigo-500/10 border border-indigo-500/20 px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                                        <span class="w-1.5 h-1.5 rounded-full bg-indigo-400"></span>
+                                        <span id="active-ai-label"></span>
+                                    </span>
+                                </div>
+                                <button id="btn-copy-ai" class="text-[11px] text-slate-400 hover:text-indigo-400 flex items-center gap-1">
+                                    <i class="fa-regular fa-copy"></i><span>コピー</span>
+                                </button>
+                            </div>
+
+                            <div id="ai-loading" class="hidden bg-slate-950/60 border border-indigo-500/30 rounded-lg p-6 flex flex-col items-center justify-center text-center">
+                                <i class="fa-solid fa-spinner fa-spin text-2xl text-indigo-500 mb-2"></i>
+                                <span id="ai-loading-text" class="text-xs text-slate-300 font-medium">AIが脆弱性を分析し、修正提案を生成中...</span>
+                                <span id="ai-loading-subtext" class="text-[11px] text-slate-500 mt-1">推論を実行中</span>
+                            </div>
+
+                            <div id="ai-explanation-container" class="ai-prose bg-slate-950/60 border border-slate-800 p-4 rounded-lg text-xs leading-relaxed">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        </div>
+    </div>
+
+    <!-- 設定モーダル (4大CLI + Ollama: コマンド & 自由入力モデル設定) -->
+    <div id="settings-modal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="relative bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden shadow-2xl">
+            
+            <!-- 保存中オーバーレイ -->
+            <div id="settings-saving-overlay" class="hidden absolute inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex flex-col items-center justify-center gap-3">
+                <div class="w-12 h-12 rounded-full border-4 border-indigo-500/20 border-t-indigo-500 animate-spin"></div>
+                <div class="text-center">
+                    <p class="text-sm font-bold text-white">設定を保存しています...</p>
+                    <p class="text-xs text-slate-400 mt-1">プロバイダ状態を更新中</p>
+                </div>
+            </div>
+
+            <div class="p-4 border-b border-slate-800 flex items-center justify-between shrink-0">
+                <h3 class="text-sm font-bold text-white flex items-center gap-2">
+                    <i class="fa-solid fa-gear text-indigo-400"></i>AIプロバイダ & CLIモデル設定
+                </h3>
+                <button id="btn-close-settings" class="text-slate-400 hover:text-slate-200">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <div class="p-5 overflow-y-auto space-y-4 text-xs">
+                <p class="text-slate-400">
+                    Codex CLI の実行コマンドや指定モデル、および Ollama のホスト・モデルを設定できます。モデル名を空欄または「default」にすると、CLIツール側で設定されているデフォルトモデルが使用されます。
+                </p>
+
+                <!-- 1. Codex CLI -->
+                <div class="border border-slate-800 rounded-xl p-3.5 bg-slate-950/40">
+                    <div class="flex items-center justify-between mb-2">
+                        <div class="flex items-center gap-2">
+                            <span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+                            <h4 class="font-bold text-slate-200 text-xs">Codex CLI (OpenAI)</h4>
+                            <span id="badge-status-codex" class="px-1.5 py-0.5 rounded text-[10px] bg-slate-800 text-slate-400">未確認</span>
+                        </div>
+                        <button class="btn-test-cli px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded text-[11px] border border-slate-700 transition" data-cli="codex">
+                            <i class="fa-solid fa-plug-circle-bolt mr-1"></i>テスト実行
+                        </button>
+                    </div>
+                    <div class="grid grid-cols-3 gap-2">
+                        <div class="col-span-2">
+                            <label class="block text-slate-400 mb-1">実行コマンド (自動で非対話 exec モードで実行されます)</label>
+                            <input id="input-cli-codex" type="text" value="codex exec --skip-git-repo-check -" class="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-slate-200 font-mono text-xs focus:outline-none focus:border-indigo-500">
+                        </div>
+                        <div>
+                            <label class="block text-slate-400 mb-1">指定モデル (手入力可)</label>
+                            <input id="input-model-codex" type="text" list="list-models-codex" value="default" placeholder="default" class="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-slate-200 font-mono text-xs focus:outline-none focus:border-indigo-500">
+                            <span id="detected-model-codex" class="text-[10px] text-emerald-400 mt-1 block"></span>
+                            <datalist id="list-models-codex">
+                                <option value="default">default (CLI標準)</option>
+                                <option value="gpt-4o">gpt-4o</option>
+                                <option value="gpt-4o-mini">gpt-4o-mini</option>
+                                <option value="o3-mini">o3-mini</option>
+                            </datalist>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 2. Ollama (ローカルLLM) -->
+                <div class="border border-slate-800 rounded-xl p-3.5 bg-slate-950/40">
+                    <div class="flex items-center gap-2 mb-2">
+                        <span class="w-2.5 h-2.5 rounded-full bg-violet-500"></span>
+                        <h4 class="font-bold text-slate-200 text-xs">Ollama (ローカルLLMサーバー)</h4>
+                        <span id="badge-status-ollama" class="px-1.5 py-0.5 rounded text-[10px] bg-slate-800 text-slate-400">未確認</span>
+                    </div>
+                    <div class="space-y-2">
+                        <div>
+                            <label class="block text-slate-400 mb-1">ホストURL</label>
+                            <input id="input-ollama-host" type="text" value="http://localhost:11434" class="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-slate-200 text-xs focus:outline-none focus:border-indigo-500">
+                        </div>
+                        <div>
+                            <label class="block text-slate-400 mb-1">使用モデル</label>
+                            <select id="select-ollama-model" class="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-slate-200 text-xs focus:outline-none focus:border-indigo-500">
+                                <option value="gemma4:12b-it-q4_K_M">gemma4:12b-it-q4_K_M</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="p-4 border-t border-slate-800 bg-slate-950/40 flex justify-end gap-2 shrink-0">
+                <button id="btn-save-settings" class="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white font-medium rounded-lg text-xs transition flex items-center gap-1.5">
+                    <span>保存して閉じる</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- レポートエクスポートモーダル -->
+    <div id="export-modal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl p-5 text-center">
+            <h3 class="text-sm font-bold text-white mb-2">レポート形式の選択</h3>
+            <p class="text-xs text-slate-400 mb-4">脆弱性診断結果をファイルに保存します。</p>
+            <div class="grid grid-cols-2 gap-3 mb-4">
+                <button id="btn-export-markdown" class="p-3 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl text-xs flex flex-col items-center gap-2 transition">
+                    <i class="fa-brands fa-markdown text-2xl text-indigo-400"></i>
+                    <span>Markdown (.md)</span>
+                </button>
+                <button id="btn-export-html" class="p-3 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl text-xs flex flex-col items-center gap-2 transition">
+                    <i class="fa-solid fa-code text-2xl text-sky-400"></i>
+                    <span>HTML (.html)</span>
+                </button>
+            </div>
+            <button id="btn-close-export" class="text-xs text-slate-400 hover:text-slate-200">キャンセル</button>
+        </div>
+    </div>
+
+    <!-- ★トースト通知コンテナ (ZIP一時ファイル時の親切案内等) -->
+    <div id="toast-container" class="fixed bottom-6 right-6 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+    <!-- フロントエンドロジック -->
+    <script src="js/app.js"></script>
+</body>
+</html>

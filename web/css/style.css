@@ -1,0 +1,163 @@
+/* Custom Styles for CodeChecker */
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
+
+body {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    user-select: none;
+}
+
+code, pre {
+    font-family: 'JetBrains Mono', monospace;
+}
+
+/* スクロールバーのカスタマイズ */
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: #0f172a;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #334155;
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #475569;
+}
+
+/* ドラッグ＆ドロップのアクティブ状態 */
+.drop-zone-active {
+    border-color: #6366f1 !important;
+    background-color: rgba(99, 102, 241, 0.1) !important;
+    transform: scale(1.01);
+}
+
+/* AI Markdown レンダリングスタイル */
+.ai-prose h2 {
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: #e2e8f0;
+    margin-top: 1rem;
+    margin-bottom: 0.5rem;
+    border-bottom: 1px solid #334155;
+    padding-bottom: 0.3rem;
+}
+
+.ai-prose p {
+    color: #cbd5e1;
+    line-height: 1.6;
+    margin-bottom: 0.8rem;
+    font-size: 0.92rem;
+}
+
+.ai-prose ul {
+    list-style-type: disc;
+    padding-left: 1.25rem;
+    margin-bottom: 0.8rem;
+    color: #cbd5e1;
+    font-size: 0.92rem;
+}
+
+/* ★AI解説内のリンクデザイン差別化 */
+
+/* 1. 通常Webリンク (http/https): 鮮やかなオレンジ + 外部アイコン */
+.ai-prose a, .ai-prose a.link-web {
+    color: #fb923c !important; /* Tailwind orange-400 */
+    text-decoration: underline !important;
+    text-underline-offset: 3px;
+    font-weight: 600;
+    transition: all 0.15s ease;
+    cursor: pointer;
+}
+
+.ai-prose a:hover, .ai-prose a.link-web:hover {
+    color: #fdba74 !important;
+    text-decoration-color: #fdba74 !important;
+}
+
+.ai-prose a.link-web::after {
+    content: " \f08e";
+    font-family: "Font Awesome 6 Free";
+    font-weight: 900;
+    font-size: 0.72rem;
+    margin-left: 3px;
+    opacity: 0.85;
+}
+
+/* 2. ソースファイルリンク: スカイブルー + 破線下線 + ファイルアイコン */
+.ai-prose a.link-file {
+    color: #38bdf8 !important; /* Tailwind sky-400 */
+    text-decoration: none !important;
+    border-bottom: 1.5px dashed #38bdf8;
+    padding-bottom: 1px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.88rem;
+    font-weight: 500;
+    background: rgba(56, 189, 248, 0.08);
+    padding: 0.1rem 0.35rem;
+    border-radius: 0.25rem;
+    transition: all 0.15s ease;
+}
+
+.ai-prose a.link-file:hover {
+    color: #7dd3fc !important;
+    border-bottom-color: #7dd3fc;
+    background: rgba(56, 189, 248, 0.16);
+}
+
+.ai-prose a.link-file::before {
+    content: "\f15c ";
+    font-family: "Font Awesome 6 Free";
+    font-weight: 400;
+    font-size: 0.75rem;
+    margin-right: 2px;
+    opacity: 0.85;
+}
+
+.ai-prose pre {
+    background-color: #090d16 !important;
+    border: 1px solid #1e293b;
+    border-radius: 0.5rem;
+    padding: 1rem;
+    overflow-x: auto;
+    margin-top: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.ai-prose code {
+    color: #38bdf8;
+    background: rgba(56, 189, 248, 0.1);
+    padding: 0.15rem 0.35rem;
+    border-radius: 0.25rem;
+    font-size: 0.85rem;
+}
+
+.ai-prose pre code {
+    background: transparent;
+    padding: 0;
+    color: #f1f5f9;
+}
+
+/* トースト通知のアニメーション */
+@keyframes slide-in-bottom {
+    0% { transform: translateY(100%); opacity: 0; }
+    100% { transform: translateY(0); opacity: 1; }
+}
+
+.animate-toast {
+    animation: slide-in-bottom 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* パルスアニメーション */
+@keyframes pulse-subtle {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.6; }
+}
+
+.animate-pulse-subtle {
+    animation: pulse-subtle 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
