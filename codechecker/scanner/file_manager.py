@@ -30,6 +30,34 @@ DEFAULT_EXCLUDED_DIRS: Set[str] = {
 # PEバイナリ拡張子
 PE_EXTENSIONS: Set[str] = {".exe", ".dll", ".sys", ".ocx"}
 
+# 静的解析対象プログラミング言語の拡張子ホワイトリスト (PERF-01)
+SOURCE_EXTENSIONS: Set[str] = {
+    # Python
+    ".py", ".pyw",
+    # JavaScript / TypeScript
+    ".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx",
+    # Java / Kotlin / Scala
+    ".java", ".jav", ".kt", ".kts", ".scala",
+    # C / C++ / Objective-C
+    ".c", ".cpp", ".cc", ".cxx", ".h", ".hpp", ".hxx", ".m", ".mm",
+    # C#
+    ".cs",
+    # Go
+    ".go",
+    # Rust
+    ".rs",
+    # PHP
+    ".php", ".phtml", ".php4", ".php5", ".php7", ".phps",
+    # Ruby
+    ".rb", ".erb",
+    # Shell / Script
+    ".sh", ".bash", ".zsh", ".bat", ".cmd", ".ps1",
+    # Database / SQL
+    ".sql",
+    # Web markup / templates
+    ".html", ".htm",
+}
+
 # 除外するファイル拡張子（メディア、アーカイブ、コンパイル中間成果物など）
 EXCLUDED_EXTENSIONS: Set[str] = {
     ".so", ".dylib", ".bin",
@@ -39,8 +67,16 @@ EXCLUDED_EXTENSIONS: Set[str] = {
     ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx",
     ".pyc", ".pyo", ".pyd", ".class", ".o", ".obj",
     ".woff", ".woff2", ".ttf", ".eot",
-    ".lock", ".map", ".min.js", ".min.css"
+    ".lock", ".map", ".min.js", ".min.css",
+    # データファイル・ログ等の除外 (PERF-01)
+    ".json", ".csv", ".tsv", ".log", ".sqlite", ".db", ".xml", ".txt", ".md"
 }
+
+# Zip Bomb 防御定数 (SEC-03)
+MAX_TOTAL_EXTRACT_SIZE: int = 200 * 1024 * 1024  # 展開後総サイズ上限: 200MB
+MAX_EXTRACT_FILES: int = 1000                    # 総ファイル数上限: 1,000ファイル
+MAX_SINGLE_FILE_SIZE: int = 100 * 1024 * 1024    # 単一ファイル上限: 100MB
+MAX_COMPRESSION_RATIO: float = 200.0             # 圧縮比率上限 (10MB以上かつ200倍以上圧縮)
 
 class FileManager:
     def __init__(self):
@@ -68,29 +104,94 @@ class FileManager:
 
         return path, False
 
-    def extract_zip_safely(self, zip_path: str) -> str:
+    def extract_zip_safely(
+        self,
+        zip_path: str,
+        max_total_size: int = MAX_TOTAL_EXTRACT_SIZE,
+        max_files: int = MAX_EXTRACT_FILES
+    ) -> str:
         """
-        Zip Slip脆弱性を防ぎつつ、アプリ内一時フォルダ (.temp) に安全に解凍する。
+        Zip Slip脆弱性および Zip Bomb（サイズ爆発・ファイル数過多）を防ぎつつ、
+        アプリ内一時フォルダ (.temp) に安全に解凍する (SEC-03)。
         """
         temp_root = get_temp_dir()
         unique_name = f"zip_{uuid.uuid4().hex[:8]}"
         target_dir = os.path.abspath(os.path.join(temp_root, unique_name))
-        os.makedirs(target_dir, exist_ok=True)
 
         with zipfile.ZipFile(zip_path, 'r') as zf:
-            for member in zf.infolist():
-                # 安全なパス判定（Zip Slip 防止）
+            members = zf.infolist()
+
+            # 1. 総ファイル数チェック (Zip Bomb 防御)
+            if len(members) > max_files:
+                raise ValueError(
+                    f"ZIP展開上限を超過しました: ファイル数 ({len(members):,}件) が上限 ({max_files:,}件) を超えています (Zip Bomb防御)"
+                )
+
+            # 2. メタデータに基づく展開前サイズ & 圧縮率事前チェック
+            total_uncompressed_size = 0
+            for member in members:
+                # 安全なパス判定 (Zip Slip 防止)
                 member_path = os.path.abspath(os.path.join(target_dir, member.filename))
                 if not member_path.startswith(target_dir + os.sep) and member_path != target_dir:
                     continue  # パストラバーサルの危険があるエントリはスキップ
 
-                zf.extract(member, target_dir)
+                if member.file_size < 0:
+                    raise ValueError("ZIPヘッダーが不正です: 負のファイルサイズが指定されています")
+
+                total_uncompressed_size += member.file_size
+                if total_uncompressed_size > max_total_size:
+                    raise ValueError(
+                        f"ZIP展開上限を超過しました: 展開後総サイズが上限 ({max_total_size // (1024 * 1024)}MB) を超えています (Zip Bomb防御)"
+                    )
+
+                if member.file_size > MAX_SINGLE_FILE_SIZE:
+                    raise ValueError(
+                        f"ZIP展開上限を超過しました: 単一ファイルサイズ ({member.filename}) が上限 ({MAX_SINGLE_FILE_SIZE // (1024 * 1024)}MB) を超えています"
+                    )
+
+                # 異常圧縮率チェック (10MB以上かつ200倍以上圧縮)
+                if member.file_size > 10 * 1024 * 1024 and member.compress_size > 0:
+                    ratio = member.file_size / member.compress_size
+                    if ratio > MAX_COMPRESSION_RATIO:
+                        raise ValueError(
+                            f"ZIP展開上限を超過しました: 異常な圧縮率 ({ratio:.1f}倍) を検出しました (Zip Bomb防御)"
+                        )
+
+            # 3. 実際の解凍処理 (展開中ストリームの実サイズ二重ガード)
+            os.makedirs(target_dir, exist_ok=True)
+            extracted_bytes = 0
+            try:
+                for member in members:
+                    member_path = os.path.abspath(os.path.join(target_dir, member.filename))
+                    if not member_path.startswith(target_dir + os.sep) and member_path != target_dir:
+                        continue
+
+                    if member.is_dir():
+                        os.makedirs(member_path, exist_ok=True)
+                        continue
+
+                    os.makedirs(os.path.dirname(member_path), exist_ok=True)
+                    with zf.open(member) as source, open(member_path, "wb") as target:
+                        while True:
+                            chunk = source.read(64 * 1024)
+                            if not chunk:
+                                break
+                            extracted_bytes += len(chunk)
+                            if extracted_bytes > max_total_size:
+                                raise ValueError(
+                                    f"ZIP展開上限を超過しました: 展開中実データが上限 ({max_total_size // (1024 * 1024)}MB) を超えました (Zip Bomb防御)"
+                                )
+                            target.write(chunk)
+            except Exception:
+                shutil.rmtree(target_dir, ignore_errors=True)
+                raise
 
         return target_dir
 
     def collect_files(self, base_dir: str) -> Tuple[List[str], List[str]]:
         """
         スキャン対象となるソースコードファイル一覧と、PEバイナリ一覧を収集する。
+        対象言語の拡張子ホワイトリスト（SOURCE_EXTENSIONS）に基づいて高速収集 (PERF-01)。
         単一ファイルパスまたはディレクトリパスのいずれにも対応 (BUG-03)。
         戻り値: (source_files, pe_files)
         """
@@ -107,7 +208,7 @@ class FileManager:
                         pe_files.append(base_dir)
                 except OSError:
                     pass
-            elif ext not in EXCLUDED_EXTENSIONS:
+            elif ext in SOURCE_EXTENSIONS:
                 try:
                     if os.path.getsize(base_dir) <= 10 * 1024 * 1024:
                         source_files.append(base_dir)
@@ -123,26 +224,22 @@ class FileManager:
                 ext = os.path.splitext(file)[1].lower()
                 full_path = os.path.join(root, file)
 
-                # PEバイナリ (EXE/DLL等) の収集
+                # PEバイナリ (EXE/DLL等) の収集 (100MB以下)
                 if ext in PE_EXTENSIONS:
                     try:
-                        # 100MB以下のバイナリをスキャン対象とする
                         if os.path.getsize(full_path) <= 100 * 1024 * 1024:
                             pe_files.append(full_path)
                     except OSError:
                         pass
                     continue
 
-                # その他の除外ファイル
-                if ext in EXCLUDED_EXTENSIONS:
-                    continue
-
-                # ソースコード (10MB以下)
-                try:
-                    if os.path.getsize(full_path) <= 10 * 1024 * 1024:
-                        source_files.append(full_path)
-                except OSError:
-                    continue
+                # ソースコードホワイトリスト判定 (10MB以下) (PERF-01)
+                if ext in SOURCE_EXTENSIONS:
+                    try:
+                        if os.path.getsize(full_path) <= 10 * 1024 * 1024:
+                            source_files.append(full_path)
+                    except OSError:
+                        pass
 
         return source_files, pe_files
 

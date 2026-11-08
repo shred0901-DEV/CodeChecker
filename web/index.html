@@ -4,20 +4,36 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CodeChecker</title>
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- FontAwesome -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- Prism.js -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-javascript.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-typescript.min.js"></script>
-    <!-- Marked.js (Markdown parser) -->
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-    <!-- DOMPurify (HTML Sanitizer) -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
+    <!-- Tailwind CSS (Local Vendor / Offline Bundle) -->
+    <script src="vendor/tailwind/tailwindcss.js"></script>
+    <!-- FontAwesome (Local Vendor / Offline Bundle) -->
+    <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css">
+    <!-- Prism.js Core & Theme (Local Vendor / Offline Bundle) -->
+    <link rel="stylesheet" href="vendor/prism/themes/prism-tomorrow.min.css">
+    <script src="vendor/prism/prism.min.js"></script>
+    <!-- Prism.js Language Components (Local Vendor) -->
+    <script src="vendor/prism/components/prism-clike.min.js"></script>
+    <script src="vendor/prism/components/prism-python.min.js"></script>
+    <script src="vendor/prism/components/prism-javascript.min.js"></script>
+    <script src="vendor/prism/components/prism-typescript.min.js"></script>
+    <script src="vendor/prism/components/prism-c.min.js"></script>
+    <script src="vendor/prism/components/prism-cpp.min.js"></script>
+    <script src="vendor/prism/components/prism-csharp.min.js"></script>
+    <script src="vendor/prism/components/prism-java.min.js"></script>
+    <script src="vendor/prism/components/prism-go.min.js"></script>
+    <script src="vendor/prism/components/prism-rust.min.js"></script>
+    <script src="vendor/prism/components/prism-php.min.js"></script>
+    <script src="vendor/prism/components/prism-ruby.min.js"></script>
+    <script src="vendor/prism/components/prism-bash.min.js"></script>
+    <script src="vendor/prism/components/prism-powershell.min.js"></script>
+    <script src="vendor/prism/components/prism-sql.min.js"></script>
+    <script src="vendor/prism/components/prism-markup.min.js"></script>
+    <script src="vendor/prism/components/prism-json.min.js"></script>
+    <script src="vendor/prism/components/prism-yaml.min.js"></script>
+    <!-- Marked.js (Markdown parser, Local Vendor) -->
+    <script src="vendor/marked/marked.min.js"></script>
+    <!-- DOMPurify (HTML Sanitizer, Local Vendor) -->
+    <script src="vendor/dompurify/purify.min.js"></script>
     <!-- Custom CSS -->
     <link rel="stylesheet" href="css/style.css">
     <script>
@@ -254,8 +270,8 @@
                                 <span id="detail-line-number" class="text-indigo-400 font-semibold">L42</span>
                             </div>
                             <button id="btn-open-detail-file" class="ml-2 text-[11px] text-sky-400 hover:text-sky-300 flex items-center gap-1 shrink-0 font-sans" title="このファイルをエディタで開く">
-                                <i class="fa-regular fa-pen-to-square"></i>
-                                <span>エディタで開く</span>
+                                <i id="btn-open-detail-file-icon" class="fa-regular fa-pen-to-square"></i>
+                                <span id="btn-open-detail-file-text">エディタで開く</span>
                             </button>
                         </div>
                     </div>

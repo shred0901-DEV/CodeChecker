@@ -1,4 +1,5 @@
 import os
+import sys
 import re
 import json
 import html
@@ -110,10 +111,51 @@ class AppAPI:
             return True
         return False
 
+    def _resolve_target_file(self, target_ref: str) -> Optional[str]:
+        """target_ref から実ファイルパスを解決する共通ヘルパー"""
+        if not target_ref:
+            return None
+
+        # 参照文字列から行番号やスキームをクリーンアップ
+        clean_ref = re.sub(r"[:#]L?\d+.*$", "", target_ref)
+        if clean_ref.startswith("file:///"):
+            clean_ref = clean_ref[8:]
+        elif clean_ref.startswith("file://"):
+            clean_ref = clean_ref[7:]
+        clean_ref = urllib.parse.unquote(clean_ref).replace("/", os.sep)
+
+        # 既に絶対パスで存在する場合
+        if os.path.isabs(clean_ref) and os.path.exists(clean_ref):
+            return clean_ref
+
+        if self.current_results:
+            findings = self.current_results.get("findings", [])
+            base_target = self.current_results.get("target_path", "")
+
+            # A. スキャン結果の findings からファイル名・相対パスで照合
+            for f in findings:
+                full_path = f.get("full_path")
+                rel_path = f.get("file", "")
+                if full_path and os.path.exists(full_path):
+                    if clean_ref.endswith(os.path.basename(full_path)) or clean_ref == rel_path.replace("/", os.sep):
+                        return full_path
+
+            # B. ターゲットディレクトリ / 単一ファイルからの照合
+            if os.path.isdir(base_target):
+                candidate = os.path.join(base_target, clean_ref)
+                if os.path.exists(candidate):
+                    return candidate
+            elif os.path.isfile(base_target):
+                if os.path.basename(base_target).lower() == os.path.basename(clean_ref).lower() or base_target == clean_ref:
+                    return base_target
+
+        return None
+
     def open_source_file(self, target_ref: str) -> Dict[str, Any]:
         """
         AI解説内のファイルリンクから、該当ソースコードを既定エディタ(またはVS Code)で開く。
         ZIP一時展開ファイルかどうかも判定して返す。
+        バイナリファイル（EXE/DLL）が渡された場合は文字化け防止のため open_file_location に自動委譲 (UX-01)。
         """
         if not target_ref:
             return {"success": False, "error": "ファイル指定が空です"}
@@ -127,56 +169,28 @@ class AppAPI:
             except ValueError:
                 pass
 
-        # 参照文字列から行番号やスキームをクリーンアップ
-        clean_ref = re.sub(r"[:#]L?\d+.*$", "", target_ref)
-        if clean_ref.startswith("file:///"):
-            clean_ref = clean_ref[8:]
-        elif clean_ref.startswith("file://"):
-            clean_ref = clean_ref[7:]
-        clean_ref = urllib.parse.unquote(clean_ref).replace("/", os.sep)
-
         # 2. 実ファイルパスの解決
-        resolved_path = None
-
-        # 既に絶対パスで存在する場合
-        if os.path.isabs(clean_ref) and os.path.exists(clean_ref):
-            resolved_path = clean_ref
-        elif self.current_results:
-            findings = self.current_results.get("findings", [])
-            base_target = self.current_results.get("target_path", "")
-
-            # A. スキャン結果の findings からファイル名・相対パスで照合
-            for f in findings:
-                full_path = f.get("full_path")
-                rel_path = f.get("file", "")
-                if full_path and os.path.exists(full_path):
-                    if clean_ref.endswith(os.path.basename(full_path)) or clean_ref == rel_path.replace("/", os.sep):
-                        resolved_path = full_path
-                        break
-
-            # B. ターゲットディレクトリ / 単一ファイルからの照合
-            if not resolved_path and os.path.isdir(base_target):
-                candidate = os.path.join(base_target, clean_ref)
-                if os.path.exists(candidate):
-                    resolved_path = candidate
-            elif not resolved_path and os.path.isfile(base_target):
-                if os.path.basename(base_target).lower() == os.path.basename(clean_ref).lower() or base_target == clean_ref:
-                    resolved_path = base_target
-
+        resolved_path = self._resolve_target_file(target_ref)
         if not resolved_path or not os.path.exists(resolved_path):
+            clean_ref = re.sub(r"[:#]L?\d+.*$", "", target_ref)
             return {
                 "success": False,
                 "error": f"該当のファイルが見つかりませんでした: {clean_ref}"
             }
 
-        # 3. ZIP一時展開ファイルかどうかの判定
+        # 3. PEバイナリ (EXE/DLL) の場合はエクスプローラー起動へ委譲 (UX-01)
+        ext = os.path.splitext(resolved_path)[1].lower()
+        if ext in {".exe", ".dll", ".sys", ".ocx"}:
+            return self.open_file_location(target_ref)
+
+        # 4. ZIP一時展開ファイルかどうかの判定
         is_temp = False
         if self.current_results:
             is_temp = self.current_results.get("is_temp", False)
         if not is_temp and (".temp" in resolved_path or "codechecker_zip_" in resolved_path or "zip_" in resolved_path):
             is_temp = True
 
-        # 4. エディタで起動 (VS Codeがあれば行番号ジャンプ、なければOS関連付けで開く)
+        # 5. エディタで起動 (VS Codeがあれば行番号ジャンプ、なければOS関連付けで開く)
         code_cli = shutil.which("code") or shutil.which("code.cmd")
         opened_via_vscode = False
 
@@ -207,6 +221,45 @@ class AppAPI:
             "line": line_num,
             "is_temp": is_temp,
             "editor": "VS Code" if opened_via_vscode else "既定エディタ"
+        }
+
+    def open_file_location(self, target_ref: str) -> Dict[str, Any]:
+        """
+        対象ファイル（特にPEバイナリ等）が存在する場所をOSのファイラー（エクスプローラー）で開き、
+        該当ファイルを選択状態にする (UX-01)。
+        """
+        if not target_ref:
+            return {"success": False, "error": "ファイル指定が空です"}
+
+        resolved_path = self._resolve_target_file(target_ref)
+        if not resolved_path or not os.path.exists(resolved_path):
+            clean_ref = re.sub(r"[:#]L?\d+.*$", "", target_ref)
+            return {
+                "success": False,
+                "error": f"該当のファイルが見つかりませんでした: {clean_ref}"
+            }
+
+        try:
+            if sys.platform == "win32":
+                # Windows エクスプローラーで選択状態で表示
+                subprocess.Popen(["explorer.exe", f"/select,{resolved_path}"], shell=False)
+            elif sys.platform == "darwin":
+                # macOS Finder で選択状態で表示
+                subprocess.Popen(["open", "-R", resolved_path], shell=False)
+            else:
+                # Linux は親ディレクトリを開く
+                subprocess.Popen(["xdg-open", os.path.dirname(resolved_path)], shell=False)
+        except Exception as e:
+            return {
+                "success": False,
+                "error": f"ファイラーの起動に失敗しました: {str(e)}"
+            }
+
+        return {
+            "success": True,
+            "path": resolved_path,
+            "file_name": os.path.basename(resolved_path),
+            "directory": os.path.dirname(resolved_path)
         }
 
     def start_scan(self, target_path: str) -> Dict[str, Any]:

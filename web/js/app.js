@@ -48,6 +48,8 @@ const elements = {
     detailFilePath: document.getElementById('detail-file-path'),
     detailLineNumber: document.getElementById('detail-line-number'),
     btnOpenDetailFile: document.getElementById('btn-open-detail-file'),
+    btnOpenDetailFileIcon: document.getElementById('btn-open-detail-file-icon'),
+    btnOpenDetailFileText: document.getElementById('btn-open-detail-file-text'),
     detailDescription: document.getElementById('detail-description'),
     detailCodeBlock: document.getElementById('detail-code-block'),
     aiLoading: document.getElementById('ai-loading'),
@@ -314,12 +316,21 @@ function setupEventListeners() {
         }, 2000);
     });
 
-    // ★ヘッダーの「エディタで開く」ボタン
+    // ★ヘッダーの「エディタで開く」/「ファイルの場所を開く」ボタン (UX-01)
     elements.btnOpenDetailFile.addEventListener('click', async () => {
         if (!state.selectedFindingId || !state.scanResults) return;
         const finding = state.scanResults.findings.find(f => f.id === state.selectedFindingId);
         if (finding) {
-            await handleOpenFile(finding.full_path || finding.file, finding.line);
+            const isBinary = finding.source === 'pe-binary' ||
+                             (finding.file && (finding.file.toLowerCase().endsWith('.exe') ||
+                                               finding.file.toLowerCase().endsWith('.dll') ||
+                                               finding.file.toLowerCase().endsWith('.sys') ||
+                                               finding.file.toLowerCase().endsWith('.ocx')));
+            if (isBinary) {
+                await handleOpenFileLocation(finding.full_path || finding.file);
+            } else {
+                await handleOpenFile(finding.full_path || finding.file, finding.line);
+            }
         }
     });
 
@@ -406,6 +417,75 @@ async function handleOpenFile(targetRef, lineNum = null) {
     } else {
         showToast("ファイルを開けませんでした", res.error || "パスが無効です", "error", 4000);
     }
+}
+
+// ファイルの場所をOSファイラーで開くハンドラ (UX-01)
+async function handleOpenFileLocation(targetRef) {
+    const api = getApi();
+    if (!api) return;
+
+    try {
+        const res = await api.open_file_location(targetRef);
+        if (res.success) {
+            showToast(
+                "📁 ファイルの場所を開きました",
+                `${res.file_name} をエクスプローラーで選択表示しました。`,
+                "info",
+                4000
+            );
+        } else {
+            showToast("ファイラーを開けませんでした", res.error || "パスが無効です", "error", 4000);
+        }
+    } catch (e) {
+        showToast("エラー", `ファイラー起動時例外: ${e}`, "error", 4000);
+    }
+}
+
+// ファイル拡張子に応じた Prism 言語クラスの判定 (UX-02)
+function getLanguageClassByFilename(filename, isBinary = false) {
+    if (isBinary) return 'language-none';
+    if (!filename) return 'language-clike';
+    const parts = filename.split('.');
+    if (parts.length <= 1) return 'language-clike';
+    const ext = parts.pop().toLowerCase();
+    const map = {
+        'py': 'language-python',
+        'pyw': 'language-python',
+        'js': 'language-javascript',
+        'jsx': 'language-javascript',
+        'mjs': 'language-javascript',
+        'cjs': 'language-javascript',
+        'ts': 'language-typescript',
+        'tsx': 'language-typescript',
+        'c': 'language-c',
+        'h': 'language-c',
+        'cpp': 'language-cpp',
+        'cc': 'language-cpp',
+        'cxx': 'language-cpp',
+        'hpp': 'language-cpp',
+        'hxx': 'language-cpp',
+        'cs': 'language-csharp',
+        'java': 'language-java',
+        'go': 'language-go',
+        'rs': 'language-rust',
+        'php': 'language-php',
+        'phtml': 'language-php',
+        'rb': 'language-ruby',
+        'sh': 'language-bash',
+        'bash': 'language-bash',
+        'zsh': 'language-bash',
+        'ps1': 'language-powershell',
+        'bat': 'language-batch',
+        'cmd': 'language-batch',
+        'sql': 'language-sql',
+        'html': 'language-html',
+        'htm': 'language-html',
+        'xml': 'language-xml',
+        'json': 'language-json',
+        'yaml': 'language-yaml',
+        'yml': 'language-yaml',
+    };
+    return map[ext] || 'language-clike';
 }
 
 // モダンなトースト通知の表示
@@ -663,9 +743,26 @@ async function selectFinding(findingId) {
     elements.detailTitle.textContent = finding.title;
     elements.detailCweBadge.textContent = finding.cwe;
     elements.detailSourceBadge.textContent = finding.source;
+    const isBinary = finding.source === 'pe-binary' ||
+                     (finding.file && (finding.file.toLowerCase().endsWith('.exe') ||
+                                       finding.file.toLowerCase().endsWith('.dll') ||
+                                       finding.file.toLowerCase().endsWith('.sys') ||
+                                       finding.file.toLowerCase().endsWith('.ocx')));
+
     elements.detailFilePath.textContent = finding.file;
-    elements.detailLineNumber.textContent = (finding.source === 'pe-binary' || finding.file.toLowerCase().endsWith('.exe') || finding.file.toLowerCase().endsWith('.dll')) ? 'Binary' : `L${finding.line}`;
+    elements.detailLineNumber.textContent = isBinary ? 'Binary' : `L${finding.line}`;
     elements.detailDescription.textContent = finding.description;
+
+    // バイナリ指摘時の「ファイルの場所を開く」ボタン切替 (UX-01)
+    if (isBinary) {
+        if (elements.btnOpenDetailFileIcon) elements.btnOpenDetailFileIcon.className = 'fa-regular fa-folder-open';
+        if (elements.btnOpenDetailFileText) elements.btnOpenDetailFileText.textContent = 'ファイルの場所を開く';
+        elements.btnOpenDetailFile.title = 'このファイルの場所をエクスプローラーで開く';
+    } else {
+        if (elements.btnOpenDetailFileIcon) elements.btnOpenDetailFileIcon.className = 'fa-regular fa-pen-to-square';
+        if (elements.btnOpenDetailFileText) elements.btnOpenDetailFileText.textContent = 'エディタで開く';
+        elements.btnOpenDetailFile.title = 'このファイルをエディタで開く';
+    }
 
     elements.detailSeverityBadge.textContent = finding.severity;
     if (finding.severity === 'HIGH') {
@@ -676,6 +773,9 @@ async function selectFinding(findingId) {
         elements.detailSeverityBadge.className = 'px-2 py-0.5 rounded text-[11px] font-bold uppercase bg-emerald-500/20 text-emerald-400 border border-emerald-500/40';
     }
 
+    // コードプレビューのシンタックスハイライト言語自動切替 (UX-02)
+    const langClass = getLanguageClassByFilename(finding.file, isBinary);
+    elements.detailCodeBlock.className = langClass;
     elements.detailCodeBlock.textContent = finding.code || '// コードが見つかりませんでした';
     Prism.highlightElement(elements.detailCodeBlock);
 

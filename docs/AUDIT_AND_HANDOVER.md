@@ -23,8 +23,15 @@ CodeChecker は、ソースコードおよび Windows PE バイナリ（EXE/DLL�
   - **BUG-05**: 進捗通知（`on_progress`）で `json.dumps` による完全エスケープを適用し、JS 構文エラーを防止。
 - **ソース管理（GitHub）**: **【完了済 (Completed)】**
   - `.gitignore` の整備、Git 初期化（`main` ブランチ）、GitHub リモート（`https://github.com/shred0901-DEV/CodeChecker.git`）への初回プッシュ完了。
-- **Phase 3（中長期改善候補）**: **【次回対応対象 (Current Target)】**
-  - Zip Bomb 防御（SEC-03）、外部 CDN アセットのローカルバンドル化（ARC-01）、ファイル拡張子走査の最適化（PERF-01）、バイナリ指摘時の「ファイルの場所を開く」対応（UX-01）、コードプレビューのハイライト言語自動切替（UX-02）。
+- **Phase 3（中長期改善候補）**: **【完了済 (Completed)】**
+  - **SEC-03**: ZIP 展開処理における Zip Bomb 防御（展開サイズ200MB / ファイル数1,000件 / 異常圧縮比率 / 実ストリーム二重検査）を実装。
+  - **ARC-01**: 外部 CDN アセット（Tailwind, FontAwesome, Prism, Marked, DOMPurify）をローカルバンドル化し、閉域網・完全オフライン対応を達成。
+  - **PERF-01**: 対象プログラミング言語の拡張子ホワイトリスト導入により、巨大データファイルやログの走査を排除し高速化。
+  - **UX-01**: PE バイナリ指摘時の「ファイルの場所を開く」機能（OS エクスプローラー連携）を実装し、エディタでの文字化けを防止。
+  - **UX-02**: 対象ファイルの拡張子に応じた Prism シンタックスハイライト言語の動的自動切替を実装。
+  - **TST-02**: 包括的自動テストスイートを 38 テストケースに拡充（全件 PASS）。
+- **ソース管理（GitHub）**: **【最新同期済 (Up-to-Date)】**
+  - リモート（`https://github.com/shred0901-DEV/CodeChecker.git`）へのコミット・プッシュ完了。
 
 ---
 
@@ -42,11 +49,11 @@ CodeChecker は、ソースコードおよび Windows PE バイナリ（EXE/DLL�
 | **RES-01** | **Medium** | Confirmed | `scanner/engine.py`<br>`file_manager.py` | 複数回スキャン実行時に `.temp/` 内の一時フォルダが蓄積し続ける（リソースリーク） | **完了 (Phase 2)** |
 | **BUG-04** | **Medium** | Confirmed | `scanner/builtin_rules.py` | コマンド実行ルールの正規表現により推奨されるリスト形式が誤検知される | **完了 (Phase 2)** |
 | **BUG-05** | **Low** | Confirmed | `codechecker/api.py` | `on_progress` 内の文字列エスケープ不備による JS 構文エラー発生リスク | **完了 (Phase 2)** |
-| **SEC-03** | **Medium** | Probable | `scanner/file_manager.py` | ZIP 展開処理における Zip Bomb（展開サイズ・ファイル数爆発）防御の欠落 | **次回対応 (Phase 3)** |
-| **ARC-01** | **Medium** | Confirmed | `web/index.html` | Tailwind, FontAwesome, Prism, Marked の外部 CDN 依存によるオフライン動作不能 | **次回対応 (Phase 3)** |
-| **PERF-01**| **Medium** | Probable | `scanner/file_manager.py` | 拡張子フィルタ不足により巨大なデータファイルやログも走査対象になる | **次回対応 (Phase 3)** |
-| **UX-01** | **Enhancement** | Probable | `web/js/app.js`, `codechecker/api.py` | バイナリ指摘に対しても「エディタで開く」が実行され文字化けする | **次回対応 (Phase 3)** |
-| **UX-02** | **Enhancement** | Probable | `web/index.html`, `web/js/app.js` | コードプレビュー欄のシンタックスハイライトが `language-python` 固定 | **次回対応 (Phase 3)** |
+| **SEC-03** | **Medium** | Confirmed | `scanner/file_manager.py` | ZIP 展開処理における Zip Bomb（展開サイズ・ファイル数爆発）防御の実装 | **完了 (Phase 3)** |
+| **ARC-01** | **Medium** | Confirmed | `web/index.html`<br>`web/vendor/` | Tailwind, FontAwesome, Prism, Marked のローカルバンドル化（完全オフライン対応） | **完了 (Phase 3)** |
+| **PERF-01**| **Medium** | Confirmed | `scanner/file_manager.py` | 拡張子ホワイトリスト導入による不要データ・ログ除外とスキャン高速化 | **完了 (Phase 3)** |
+| **UX-01** | **Enhancement** | Confirmed | `web/js/app.js`, `codechecker/api.py` | バイナリ指摘時の「ファイルの場所を開く」（OSエクスプローラー連携）対応 | **完了 (Phase 3)** |
+| **UX-02** | **Enhancement** | Confirmed | `web/index.html`, `web/js/app.js` | コードプレビュー欄のシンタックスハイライト言語自動切替対応 | **完了 (Phase 3)** |
 | **ARC-02** | **Low** | Confirmed | `codechecker/app.py`, `codechecker/api.py` | PyWebView 内部非公開 API（`_dnd_state`）への直接依存 | 現状維持推奨 |
 
 ---

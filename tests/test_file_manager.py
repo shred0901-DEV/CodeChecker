@@ -120,5 +120,77 @@ class TestFileManager(unittest.TestCase):
         self.fm.cleanup_all_temp()
         self.assertFalse(os.path.exists(dummy_zip_dir))
 
+    # ==========================================================
+    # 5. Zip Bomb 防御テスト (SEC-03)
+    # ==========================================================
+    def test_zip_bomb_file_count_limit(self):
+        """ファイル数上限超過時に安全に例外を送出して中断すること (Zip Bomb 防御)"""
+        with tempfile.NamedTemporaryFile("wb", delete=False, suffix=".zip") as tf:
+            zip_path = tf.name
+
+        try:
+            # 1,005 個のエントリを持つ ZIP を作成
+            with zipfile.ZipFile(zip_path, "w") as zf:
+                for i in range(1005):
+                    zf.writestr(f"file_{i}.txt", "a")
+
+            with self.assertRaises(ValueError) as ctx:
+                self.fm.extract_zip_safely(zip_path)
+            self.assertIn("Zip Bomb", str(ctx.exception))
+            self.assertIn("ファイル数", str(ctx.exception))
+        finally:
+            if os.path.exists(zip_path):
+                os.remove(zip_path)
+
+    def test_zip_bomb_total_size_limit(self):
+        """展開サイズ上限超過時に安全に例外を送出して中断すること (Zip Bomb 防御)"""
+        with tempfile.NamedTemporaryFile("wb", delete=False, suffix=".zip") as tf:
+            zip_path = tf.name
+
+        try:
+            with zipfile.ZipFile(zip_path, "w") as zf:
+                # 5MBのデータを持つエントリを作成
+                zf.writestr("large_data.txt", b"A" * (5 * 1024 * 1024))
+
+            # テスト用に上限を 2MB に設定してテスト
+            with self.assertRaises(ValueError) as ctx:
+                self.fm.extract_zip_safely(zip_path, max_total_size=2 * 1024 * 1024)
+            self.assertIn("Zip Bomb", str(ctx.exception))
+            self.assertIn("展開後総サイズ", str(ctx.exception))
+        finally:
+            if os.path.exists(zip_path):
+                os.remove(zip_path)
+
+    # ==========================================================
+    # 6. 拡張子ホワイトリスト & データファイル除外テスト (PERF-01)
+    # ==========================================================
+    def test_collect_files_whitelist_and_skip_data_files(self):
+        """プログラミング言語ホワイトリストに含まれるファイルのみ収集し、データファイルは除外すること"""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # 対象プログラミング言語ファイル
+            valid_files = ["app.py", "index.js", "main.cpp", "service.go", "Database.cs"]
+            for vf in valid_files:
+                with open(os.path.join(temp_dir, vf), "w", encoding="utf-8") as f:
+                    f.write("// code\n")
+
+            # 除外されるべきデータファイル・ログ
+            ignored_data_files = [
+                "data.json", "records.csv", "server.log", "output.xml",
+                "notes.txt", "README.md", "state.sqlite"
+            ]
+            for df in ignored_data_files:
+                with open(os.path.join(temp_dir, df), "w", encoding="utf-8") as f:
+                    f.write("data content\n")
+
+            sources, pes = self.fm.collect_files(temp_dir)
+
+            # 収集されたファイルは valid_files の 5 件のみであること
+            collected_names = [os.path.basename(p) for p in sources]
+            self.assertEqual(len(sources), len(valid_files))
+            for vf in valid_files:
+                self.assertIn(vf, collected_names)
+            for df in ignored_data_files:
+                self.assertNotIn(df, collected_names)
+
 if __name__ == "__main__":
     unittest.main()
