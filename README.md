@@ -1,6 +1,5 @@
 # CodeChecker - ソースコード & バイナリ脆弱性診断 / AI修正提案デスクトップアプリ
 
-![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Python](https://img.shields.io/badge/python-3.10+-brightgreen.svg)
 ![Tests](https://img.shields.io/badge/tests-47%20passed-success.svg)
 ![Offline](https://img.shields.io/badge/offline-100%25%20ready-brightgreen.svg)
