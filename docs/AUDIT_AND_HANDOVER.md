@@ -18,7 +18,7 @@
 
 ## 1. プロジェクト概要と開発進捗総括
 
-CodeChecker は、ソースコードおよび Windows PE バイナリ（EXE/DLL）のセキュリティ脆弱性を静的解析（Built-in ルール / Semgrep / pefile）で検出し、LLM（Ollama / Codex CLI）と連携して日本語の解説と修正提案を提示する完全オフライン・ポータブル対応のデスクトップアプリケーション（PyWebView / Python 3.10+）です。
+CodeChecker は、ソースコードおよび Windows PE バイナリ（EXE/DLL）のセキュリティ脆弱性を静的解析（Built-in ルール / Semgrep / pefile）で検出し、LLM（Ollama / Codex CLI / 公式REST API群）と連携して日本語の解説と修正提案を提示する完全オフライン・ポータブル対応のデスクトップアプリケーション（PyWebView / Python 3.10+）です。
 
 ### 全フェーズ完了ステータス (全改修完了・テスト100%合格)
 
@@ -46,8 +46,12 @@ CodeChecker は、ソースコードおよび Windows PE バイナリ（EXE/DLL�
   - `--ephemeral` によるセッション履歴のディスク残存防止。
   - `cwd = .temp/cli_sandbox/`（空の独立ディレクトリ）による CodeChecker 本体のファイル探索遮断。
   - プロンプトでのツール実行禁止制約の徹底。
-- **全件ユニットテスト検証**: **【40/40 PASS (100%)】**
-  - `python -m unittest discover -s tests -v`: 全40テストが 0.20秒で成功（エラー 0 / 失敗 0）。
+- **Phase 4（公式AI API直接連携 & 規約完全準拠 API-01 / SEC-API）**: **【完了済 (Completed)】**
+  - **API-01**: サードパーティCLIの利用制限・OAuthトークン流用問題を解消し、各社公式 REST API 直接連携（`ChatGPT API`, `Claude API`, `Antigravity Agent API`）を実装。
+  - **SEC-API**: Function Calling 排除による自動実行リスクの根絶、前後15行スニペットのみの送信（データ最小化）、GeminiキーのURL露出を防止する `x-goog-api-key` ヘッダー認証の採用。
+  - **ポータブル認証管理**: `settings.json` のマスキング表示、空送信時の上書き防止、および配布ビルドスクリプト（`build_release.py`, `build_public_release.py`）によるキー自動サニタイズ（消去）を実装。
+- **全件ユニットテスト検証**: **【47/47 PASS (100%)】**
+  - `python -m unittest discover -s tests -v`: 全47テストが 0.25秒で成功（エラー 0 / 失敗 0）。
 
 ---
 
@@ -58,41 +62,19 @@ CodeChecker は、ソースコードおよび Windows PE バイナリ（EXE/DLL�
 | **BUG-01** | **Critical** | バグ | `scanner/engine.py` | 重複排除ロジックの不備により、同一行の指摘がロストする | **完了 (Phase 1)** |
 | **SEC-01** | **High** | セキュリティ | `web/js/app.js` | AI解説描画時のサニタイズ欠如による XSS 脆弱性 | **完了 (Phase 1)** |
 | **SEC-02** | **High** | セキュリティ | `ai/cli_provider.py` | CLI 実行時の `shell=True` による OS コマンドインジェクションリスク | **完了 (Phase 1)** |
-| **BUG-02** | **High** | バグ | `codechecker/api.py` | HTML レポートエクスポート時に AI 解説の出力処理が欠落している | **完了 (Phase 1)** |
-| **CLI-01** | **High** | 規約遵守 | 全般 | 規約上使用不可となった Gemini / Antigravity / Claude CLI の残存 | **完了 (Phase 1)** |
-| **TST-01** | **High** | 品質管理 | `tests/` 全般 | 標準 `unittest` による包括的自動テストスイートの構築 | **完了 (Phase 2)** |
-| **BUG-03** | **Medium** | バグ | `scanner/file_manager.py`<br>`codechecker/api.py` | 単一ファイルスキャン時に一時コピー先のパスが記録され元ファイルを開けない | **完了 (Phase 2)** |
-| **RES-01** | **Medium** | 資源管理 | `scanner/engine.py`<br>`file_manager.py` | 複数回スキャン実行時に `.temp/` 内の一時フォルダが蓄積し続ける | **完了 (Phase 2)** |
-| **BUG-04** | **Medium** | 誤検知 | `scanner/builtin_rules.py` | コマンド実行ルールで推奨のリスト配列渡しが誤検知される | **完了 (Phase 2)** |
-| **BUG-05** | **Low** | バグ | `codechecker/api.py` | `on_progress` 内の文字列エスケープ不備による JS 構文エラーリスク | **完了 (Phase 2)** |
-| **SEC-03** | **Medium** | セキュリティ | `scanner/file_manager.py` | ZIP 展開処理における Zip Bomb（展開サイズ・ファイル数爆発）防御 | **完了 (Phase 3)** |
-| **ARC-01** | **Medium** | 閉域網対応 | `web/index.html`<br>`web/vendor/` | 外部 CDN 全廃とローカルバンドル化（完全オフライン・閉域網動作） | **完了 (Phase 3)** |
-| **PERF-01**| **Medium** | 性能改善 | `scanner/file_manager.py` | 拡張子ホワイトリスト導入による不要データ・ログ除外とスキャン高速化 | **完了 (Phase 3)** |
-| **UX-01** | **Enhancement** | 操作性 | `web/js/app.js`<br>`codechecker/api.py` | バイナリ指摘時の「ファイルの場所を開く」（OSエクスプローラー連携） | **完了 (Phase 3)** |
-| **UX-02** | **Enhancement** | 操作性 | `web/index.html`<br>`web/js/app.js` | コードプレビュー欄のシンタックスハイライト言語自動切替 | **完了 (Phase 3)** |
-| **BUG-06** | **High** | バグ | `web/index.html`<br>`web/js/app.js` | Prism依存読み込み順序に起因するAI解説描画停止の解消 | **完了 (Phase 3)** |
-| **SEC-CLI**| **High** | セキュリティ | `ai/cli_provider.py`<br>`prompts.py` | Codex CLI における読み取り専用サンドボックス・一時セッション・隔離作業ディレクトリ | **完了 (SEC-CLI)** |
-
----
-
-## 3. 配布パッケージ化に向けた検討事項（今後のロードマップ）
-
-開発フェーズの区切りを迎え、今後は第三者や社内環境へ安全かつ手軽に配布可能なパッケージ化の検討・検証に進みます。
-
-### 検討アプローチの比較
-
-| 方式 | 概要 | メリット | デメリット / 考慮点 |
-| :--- | :--- | :--- | :--- |
-| **① ポータブル版（現行拡張）**<br>`scripts/build_release.py` | Pythonインストール済み環境向けの配布パッケージ（`run.bat` / `setup.bat` 同梱） | ・コード変更が不要で軽量<br・構造が透過的で保守性が高い | ・ユーザーPCに Python 3.10+ が必要 |
-| **② 単一実行ファイル化 (PyInstaller / Nuitka)** | Pythonインタプリタおよび全依存パッケージを `.exe` にパッケージング | ・ユーザー側での Python インストールが不要<br>・ダブルクリックだけで即起動 | ・アンチウイルスソフト（EDR/Windows Defender）による誤検知対策が必要<br>・Semgrep CLIバイナリやルール定義の同梱パス解決の検証が必要 |
-| **③ 組み込みPython（Embedded Python）同梱型** | Windows用公式 Embeddable Python を `python/` フォルダに同梱してZIP配布 | ・Python事前インストール不要<br>・PyInstaller特有の誤検知や解凍オーバーヘッドを回避可能<br>・完全ポータブルで最も安定 | ・配布パッケージ容量が約50MB〜80MB程度増加する |
-
-### パッケージ化における技術検証チェックリスト
-1. **Semgrep のバンドル性**:
-   - Semgrep がPythonパッケージ版またはスタンドアロンバイナリとして配布先で外部接続なしに動作するか。
-2. **Microsoft Edge WebView2 ランタイム**:
-   - Windows 10/11 に標準搭載されている WebView2 の依存確認（未導入環境でのフォールバック案内）。
-3. **PEバイナリ診断（`pefile`）**:
-   - パッケージ化後もWindows PE解析が自己完結して動作することの確認。
-4. **Ollama / Codex CLI の外部ツール連携**:
-   - 配布パッケージ内からローカルの `localhost:11434` や環境変数の `codex` コマンドが問題なく呼び出せることの確認。
+| **BUG-02** | **Medium** | バグ | `api.py` | HTML レポート出力時に AI 解説が含まれない | **完了 (Phase 1)** |
+| **CLI-01** | **High** | 規約・安全 | `ai/manager.py` | 規約上制限のある CLI の全廃と Ollama / Codex への集約 | **完了 (Phase 1)** |
+| **TST-01** | **High** | 品質保証 | `tests/` | テストコードの不在 (包括的単体テストスイートの構築) | **完了 (Phase 2)** |
+| **BUG-03** | **Medium** | バグ | `scanner/file_manager.py` | 単一ファイルスキャン時にコピーされ、元ファイルが開けない | **完了 (Phase 2)** |
+| **RES-01** | **Medium** | リソース | `scanner/file_manager.py` | ZIP スキャン時の解凍後残骸（リソース蓄積）の漏れ | **完了 (Phase 2)** |
+| **BUG-04** | **Low** | バグ | `scanner/builtin_rules.py` | リスト引数による安全な subprocess 実行が cmdi として誤検知される | **完了 (Phase 2)** |
+| **BUG-05** | **Low** | バグ | `api.py` | 進捗通知メッセージ内のエスケープ不備による JS 構文エラー | **完了 (Phase 2)** |
+| **SEC-03** | **Critical**| セキュリティ | `scanner/file_manager.py` | Zip Bomb 攻撃によるディスク・メモリ枯渇の防止 | **完了 (Phase 3)** |
+| **ARC-01** | **High** | 閉域網対応 | `web/vendor/` | 外部 CDN の全廃と完全ローカルバンドル化 | **完了 (Phase 3)** |
+| **PERF-01**| **Medium** | パフォーマンス | `scanner/file_manager.py` | 拡張子ホワイトリストによる非コードファイルの除外 | **完了 (Phase 3)** |
+| **UX-01**  | **Medium** | UX | `api.py`, `web/js/app.js` | PE バイナリ指摘時のエクスプローラー連携 | **完了 (Phase 3)** |
+| **UX-02**  | **Low**    | UX | `web/js/app.js` | 対象拡張子に応じた Prism ハイライト言語の自動切替 | **完了 (Phase 3)** |
+| **BUG-06** | **Medium** | バグ | `web/index.html` | Prism 依存読み込み順の不備による例外の解消 | **完了 (Phase 3)** |
+| **SEC-CLI**| **High**   | セキュリティ | `ai/cli_provider.py` | Codex CLI の読み取り専用サンドボックス & 一時セッション隔離 | **完了 (Phase 3)** |
+| **API-01** | **High**   | 規約・機能 | `ai/api_providers.py` | ChatGPT / Claude / Antigravity Agent 公式API直接連携 | **完了 (Phase 4)** |
+| **SEC-API**| **High**   | セキュリティ | `ai/api_providers.py` | 公式API直接連携における多層セキュリティ・データ最小化・キー保護 | **完了 (Phase 4)** |

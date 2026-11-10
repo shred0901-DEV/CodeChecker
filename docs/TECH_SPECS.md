@@ -12,8 +12,8 @@
 | **コード表示・パース** | Prism.js / Marked.js / DOMPurify | シンタックスハイライト、Markdownパース、DOMサニタイズ（全ローカル） |
 | **静的解析エンジン** | `semgrep` + 内蔵ルール + `pefile` | ソースコード (30+言語対応) および Windows PEバイナリ (EXE/DLL) 包括セキュリティ診断 |
 | **ローカルLLM** | Ollama REST API (`/api/generate`) | `http://localhost:11434` を通じたローカル推論 (VRAM即時解放対応) |
-| **AI連携** | Ollama (REST API) / Codex CLI (`subprocess` パイプライン) | ローカルLLMおよびOpenAI Codex CLIと連携 |
-| **自動テスト** | Python `unittest` | 40テストケースによる網羅的自動回帰テスト (所要時間 ~0.2秒) |
+| **AI連携方式** | Ollama / Codex CLI / 公式REST API群 | ローカル推論、CLIサンドボックス実行、およびクラウド公式API直接連携 (BYOK) |
+| **自動テスト** | Python `unittest` | 47テストケースによる網羅的自動回帰テスト (所要時間 ~0.25秒) |
 
 ---
 
@@ -21,11 +21,14 @@
 
 CodeChecker は以下のAI実行環境に対応しています：
 
-| プロバイダID | ツール名称 | 実行形式 | 備考 |
+| プロバイダID | ツール名称 | 実行形式・エンドポイント | 備考 |
 | :--- | :--- | :--- | :--- |
 | **`ollama`** | **Ollama** (ローカルLLM) | REST API (`/api/generate`) | 完全オフライン動作。メモリ・VRAM自動解放（`keep_alive: 0`）対応 |
 | **`codex`** | **Codex CLI** (OpenAI) | `codex exec --sandbox read-only --ephemeral --skip-git-repo-check -` | 引数リスト・`shell=False`、読み取り専用サンドボックス、セッション一時化、隔離ディレクトリ実行 |
-| **`disabled`**| **AI無効 (高速)** | N/A | 静的解析のみを瞬時に実行 |
+| **`chatgpt`** | **ChatGPT API** (OpenAI 公式) | `POST https://api.openai.com/v1/chat/completions` | `gpt-4o-mini`, `gpt-4o`, `o3-mini` 対応。Bearer認証。推論モデル対応 |
+| **`claude`** | **Claude API** (Anthropic 公式) | `POST https://api.anthropic.com/v1/messages` | `claude-3-7-sonnet-20250219`, `claude-3-5-haiku-20241022` 対応。x-api-key認証 |
+| **`gemini`** | **Antigravity Agent API** (Google 公式) | `POST https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent` | `gemini-3.8-flash`, `gemini-3.8-pro`, `gemini-2.5-flash` 対応。`x-goog-api-key` ヘッダー認証 |
+| **`disabled`**| **AI無効 (高速)** | N/A | 静的解析のみを瞬時に実行（外部通信・ローカル推論なし） |
 
 ### サブプロセス制御 & セキュリティ仕様
 - Windows環境におけるサブプロセス実行時、`creationflags=subprocess.CREATE_NO_WINDOW`（`0x08000000`）を付与し、CLIやSemgrepの実行時に黒いコンソール画面が一瞬表示される現象を完全抑制。
@@ -36,7 +39,13 @@ CodeChecker は以下のAI実行環境に対応しています：
   - プロセス起動時のカレントワーキングディレクトリ（`cwd`）を `.temp/cli_sandbox/` に隔離し、CodeChecker 本体のコードベースへの不必要なアクセスや探索を物理的に遮断。
   - プロンプトにてツール実行やファイル編集の禁止を明示。
 - **Ollama のリソース管理**:
-  - プロバイダ切り替え時およびアプリ終了時に `keep_alive: 0` を送信し、VRAM/RAMをOSへ即時返還。
+  - プロバイダ切り替え時およびアプリ終了時に `unload_model()` を呼び出し、VRAM/RAMをOSへ即時返還。
+- **公式 AI API の安全直接連携 (SEC-API)**:
+  - 公式SDK（openai, anthropic, google-genai 等）を同梱せず、標準的な `requests` でエンドポイントを直接呼び出すことで、アプリの肥大化と不要な依存関係の混入を回避。
+  - **Function Calling / Tool Use の完全排除**: AIにローカルファイル操作やコマンド実行の権限を一切与えず、純粋なテキスト生成（Text-in, Text-out）のみに限定。
+  - **データ送信の局所化**: ファイル全体ではなく、指摘箇所の前後15行（約30行）のスニペットのみを抽出して送信。PEバイナリ実体データは送信を遮断。
+  - **ヘッダー認証の徹底**: Gemini API では URL クエリパラメータ（`?key=...`）ではなく `x-goog-api-key` HTTPヘッダーを採用し、ProxyやサーバーログからのAPIキー漏洩（CWE-598）を遮断。
+  - **キー保護とサニタイズ**: UIマスキング表示、空送信による既存キー上書き保護、および配布パッケージ生成スクリプト（`build_release.py`, `build_public_release.py`）によるキー自動消去。
 
 ---
 
@@ -74,8 +83,9 @@ Windows PEバイナリ（`.exe`, `.dll`, `.sys`, `.ocx`）に対し、`pefile` �
 - **AIプロバイダ切替 & キャッシュ制御**:
   - ヘッダーのプロバイダ選択変更時は自動生成を行わず、設定のみを更新。
   - 「AI解説を再生成」ボタン押下時に、選択プロバイダで生成を実行。すでに同プロバイダ・同モデルで生成済みの指摘はキャッシュから即時復元。
+  - エラーやタイムアウト時はキャッシュに保存しないため、いつでも安全に再試行可能。
 - **AI生成ステータス表示の同期**:
-  - 各脆弱性カードに、どのAIプロバイダによって解説・修正提案が生成されたかを示すバッジ（例: `Ollamaによって生成済み`）を表示。
+  - 各脆弱性カードに、どのAIプロバイダによって解説・修正提案が生成されたかを示すバッジ（例: `Ollamaによって生成済み`、`ChatGPT APIによって生成済み` 等）を表示。
   - 推論処理中や再生成中は非表示を維持し、詳細欄のAI解説・バッジが表示準備完了したタイミングと完全に同期して表示。
   - スキャン実行時には一覧の生成ステータスを自動クリア。
 - **スキャン中のUIロック（ぼかしオーバーレイ）**:
@@ -98,23 +108,6 @@ Windows PEバイナリ（`.exe`, `.dll`, `.sys`, `.ocx`）に対し、`pefile` �
   - ZIP 展開前に `zf.infolist()` を走査し、総ファイル数上限（最大1,000件）、展開後総サイズ上限（最大200MB）、単一ファイル上限（最大100MB）、異常圧縮比率（200倍以上）を事前検証。
   - さらに展開中ストリームのバイト積算による二重チェックを行い、メタデータ偽装型 Zip Bomb も安全に遮断。
   - 展開先パストラバーサル（Zip Slip）の自動除外。
-- **拡張子ホワイトリストによる高速ファイル走査 (PERF-01)**:
-  - 静的解析対象のプログラミング言語拡張子ホワイトリスト（`SOURCE_EXTENSIONS`）を定義。
-  - `.json`, `.csv`, `.log`, `.sqlite`, `.xml`, `.txt`, `.md` などのデータファイル・ログを内蔵ルール正規表現スキャンから除外し、走査速度を大幅に向上。
-- **アプリ内一時フォルダ (`.temp/`)**:
-  - ZIPアーカイブ展開先をOSの `%TEMP%` ではなく、アプリディレクトリ直下の `.temp/` 配下に隔離。
-  - スキャン開始時・終了時・起動時に古い一時フォルダを自動消去し、リソースリークを防止。
-
----
-
-## 5. 自動回帰テスト仕様
-
-- **テストフレームワーク**: Python 標準 `unittest`
-- **テストスイート配置**: `tests/`
-  - `test_engine.py`: スキャンエンジン、重複排除、PE全指摘検出、CWE日本語タイトルマッピング、一時フォルダ管理
-  - `test_builtin_rules.py`: 内蔵ルール検知精度、誤検知除外（安全なリスト引数コマンド等）
-  - `test_file_manager.py`: ファイル収集ホワイトリスト、Zip Slip / Zip Bomb 防御、クリーンアップ
-  - `test_ai_manager.py`: キャッシュ機能、Ollama / Codex 切替、Codex セキュリティフラグ（`--sandbox read-only`、`--ephemeral`、作業ディレクトリ隔離）
-  - `test_api.py`: PyWebView API、エディタ起動、エクスプローラー起動
-  - `test_web_offline.py`: ローカルWebアセットの完全性、外部CDN参照の完全排除検証
-- **実行結果**: 40/40 テスト PASS (所要時間 約0.2秒)
+- **ポータブル設定永続化 (`settings.json`)**:
+  - アプリ直下の `settings.json` にプロバイダ選択、Ollama設定、CLI設定、API設定（キー・モデル）を完全集約。
+  - OS レジストリやユーザープロファイルを一切汚さず、USBメモリ等での持ち運び運用に対応。

@@ -2,6 +2,7 @@
 
 ## 1. 概要 (Overview)
 CodeChecker は、ソースコードおよび Windows PE バイナリのセキュリティ脆弱性を静的解析（SAST）と AI（LLM）のハイブリッドアプローチで高精度に診断し、具体的な修正提案を提示するクロスプラットフォーム対応のデスクトップアプリケーションです。
+完全ポータブル設計、ローカルファースト、および各社公式 REST API との直接連携に対応しています。
 
 ---
 
@@ -14,13 +15,14 @@ flowchart TB
         UI_Dash["ダッシュボード (高中低サマリー / フィルター)"]
         UI_List["脆弱性一覧 (危険度カラーバー / AI生成済みバッジ)"]
         UI_Detail["詳細ビュー (Prism動的ハイライト / DOMPurifyサニタイズ / AI解説)"]
-        UI_Settings["設定画面 (LLM選択 / Ollama / Codex CLI設定)"]
+        UI_Settings["設定画面 (AI選択 / Ollama / Codex CLI / 3大公式API設定)"]
     end
 
     subgraph Bridge["PyWebView JS-Python 双方向通信ブリッジ (AppAPI)"]
         API_Scan["start_scan(path)"]
         API_Explain["explain_finding(finding_id, provider)"]
         API_Settings["get_ai_status() / update_ai_settings()"]
+        API_Test["test_cli(cli_id) / test_api(api_id)"]
         API_Dialog["select_folder() / select_file() / export_report()"]
         API_Open["open_source_file() / open_file_location()"]
     end
@@ -39,6 +41,13 @@ flowchart TB
             AIManager["AIManager\n(プロバイダ切替 / キャッシュ / settings.json 永続化)"]
             OllamaClient["Ollama Provider\n(localhost:11434 / keep_alive:0 VRAM即時解放)"]
             CodexClient["Dedicated CLI Provider\n(Codex: --sandbox read-only / --ephemeral / cwd隔離)"]
+            
+            subgraph CloudAPIs["公式 REST API プロバイダ群 (BaseAPIProvider)"]
+                OpenAIClient["OpenAI Provider (chatgpt)\n(Bearer認証 / gpt-4o / o3-mini)"]
+                AnthropicClient["Anthropic Provider (claude)\nx-api-key / claude-3-7-sonnet"]
+                GeminiClient["Gemini Provider (gemini)\nx-goog-api-key / gemini-3.8-flash"]
+            end
+            
             PromptEngine["Prompt Template Engine\n(日本語解説・Diff生成・ツール実行禁止制約)"]
         end
     end
@@ -71,11 +80,14 @@ flowchart TB
   - 選択した脆弱性のコード箇所ハイライト表示（拡張子に応じた自動言語切替）
   - DOMPurify による安全なAI解説・修正差分の描画
   - 非同期リクエスト競合ガード（`explanationRequestId`）による表示破綻防止
+  - AIプロバイダ選択ドロップダウン（Ollama / Codex CLI / ChatGPT API / Claude API / Antigravity Agent API / AI無効）
+  - 設定画面（モーダル）での各プロバイダ設定、APIキー入力（マスキング表示）、推奨モデルサジェスト（手入力可）、および「テスト実行」機能の提供
   - レポート（HTML/Markdown）の一括エクスポート
 
 ### 3.2 PyWebView ブリッジ API (`api.py`)
 - PythonネイティブのオブジェクトメソッドをJavaScriptから直接 `window.pywebview.api.methodName()` で呼び出し可能にする仲介層。
 - ファイルダイアログの起動、スキャンの非同期実行、進捗通知イベント（`on_progress`）、AI解説生成のトリガーを仲介。
+- CLI導通テスト（`test_cli`）および API接続テスト（`test_api`）の実行と成否通知。
 - ソースコードエディタ連携（VS Code / 既定エディタ）およびバイナリ向けエクスプローラー連携（`open_file_location`）を提供。
 
 ### 3.3 ファイルマネージャー (`file_manager.py`)
@@ -91,9 +103,15 @@ flowchart TB
 - **重複排除と重大度集計**: 同一行の複数指摘をロストせず保持（BUG-01対策）し、HIGH/MEDIUM/LOWに集約。
 
 ### 3.5 AI解説・修正提案モジュール (`ai/`)
-- **AIManager**: ユーザー設定に応じて `OllamaProvider`、`DedicatedCLIProvider`、または `disabled` へルーティング。同一指摘に対するキャッシュ管理およびアプリ内 `settings.json` へのポータブル保存。
+- **AIManager**: ユーザー設定に応じて `OllamaProvider`、`DedicatedCLIProvider`、`BaseAPIProvider` 派生クラス（OpenAI, Anthropic, Gemini）、または `disabled` へルーティング。同一指摘に対するキャッシュ管理およびアプリ内 `settings.json` へのポータブル保存。
 - **OllamaProvider**: ローカルのOllamaサーバー（`http://localhost:11434`）へHTTP通信。プロバイダ切替時や終了時に `keep_alive: 0` でVRAMを即時解放。
 - **DedicatedCLIProvider**: OpenAI Codex CLI（`codex exec --sandbox read-only --ephemeral --skip-git-repo-check -`）へ引数リスト・`shell=False`・標準入力パイプで安全通信。カレントディレクトリを空の `.temp/cli_sandbox/` に隔離。
+- **BaseAPIProvider (`api_providers.py`)**:
+  - 各社公式SDKを同梱せず、既存の `requests` ライブラリを用いた軽量な REST API 直接呼び出し基盤。
+  - **OpenAIProvider (`chatgpt`)**: `https://api.openai.com/v1/chat/completions` (Bearer認証)
+  - **AnthropicProvider (`claude`)**: `https://api.anthropic.com/v1/messages` (x-api-key, anthropic-version認証)
+  - **GeminiProvider (`gemini`)**: `https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent` (x-goog-api-key ヘッダー認証)
+  - 共通の接続テスト（`test_connection`）、HTTPエラーハンドリング（401/403/429/5xx）、タイムアウト保護を提供。
 
 ---
 
@@ -107,5 +125,6 @@ flowchart TB
 4. **統合**: `Aggregator` が結果を統合、CWEタイトル付与、重複排除を実行してUIへ返却。
 5. **AI解説生成**:
    - ユーザーが指摘を選択時、`AIManager` が対象コードのスニペット（前後15行）を抽出し、プロンプトを構築。
-   - 選択されたAI（Ollama / Codex CLI）が安全な通信経由で推論し、Markdownを返却。
+   - 選択されたAI（Ollama / Codex CLI / 公式REST API群）が安全な通信経由で推論し、Markdownを返却。
+   - エラーやタイムアウト時はキャッシュに保存せず、再試行を可能に維持。
 6. **安全描画**: Marked.js + DOMPurify でサニタイズされたHTMLをUI詳細ペインにレンダリング。

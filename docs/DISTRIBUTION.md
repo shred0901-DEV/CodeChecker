@@ -9,6 +9,7 @@
 
 Python 3.10+ がインストールされている環境を対象とした動作確認・デバッグ用ポータブルパッケージです。
 以下のスクリプトを実行することで、最新のソースコードおよびアセットが `release/` ディレクトリに自動同期されます。
+また、開発者の個人 API キーが配布物に混入しないよう、同期完了時に `release/settings.json` の API キーが自動的に空文字化（サニタイズ）されます。
 
 ```bash
 python scripts/build_release.py
@@ -22,13 +23,19 @@ release/
 ├── setup.bat            # 初回環境構築バッチ (pip install -r requirements.txt)
 ├── README.txt           # 配布用簡易マニュアル (UTF-8)
 ├── main.py              # アプリ起動エントリーポイント
+├── settings.json        # ポータブル設定ファイル (APIキー自動サニタイズ済み)
+├── SECURITY_REPORT.md   # アプリ安全性レポート
 ├── requirements.txt     # 必要パッケージ定義
 ├── codechecker/         # バックエンド Python ソースコード
+│   ├── ai/              # AIプロバイダ (Ollama, Codex CLI, ChatGPT/Claude/Gemini 公式API)
+│   └── scanner/         # 静的解析エンジン (Semgrep, 内蔵ルール, pefile)
 ├── web/                 # フロントエンド (完全ローカルバンドル化されたHTML/CSS/JS)
 ├── docs/                # 技術仕様書・マニュアル一式
 └── samples/             # 動作検証・学習用サンプルコード
     ├── sample_vulnerable.py
-    └── sample_vulnerable.zip
+    ├── sample_vulnerable.zip
+    ├── sample_vulnerable.exe
+    └── sample_vulnerable.dll
 ```
 
 ---
@@ -38,7 +45,8 @@ release/
 Python の事前インストールが一切不要な、完全自己完結型の配布用パッケージです。
 公式の Windows x86-64 Embeddable Python を内部に同梱し、必要な全依存ライブラリがあらかじめ組み込まれています。
 
-以下のビルドスクリプトを実行することで、ワンクリックで `release_public/` を自動生成できます。
+以下のビルドスクリプトを実行することで、オフライン環境・ホストキャッシュを活用してワンクリックで `release_public/` を自動生成できます。
+開発者個人の API キーは自動サニタイズされ、配布先で安全に利用開始できます。
 
 ```bash
 python scripts/build_public_release.py
@@ -55,50 +63,22 @@ release_public/
 ├── run_silent.vbs       # 黒い画面を出さずに直接起動する VBScript
 ├── README.txt           # 利用者向け説明書 (Python不要の案内)
 ├── main.py              # アプリ起動エントリーポイント
-├── settings.json        # ポータブル設定ファイル
+├── settings.json        # ポータブル設定ファイル (APIキー自動サニタイズ済み)
 ├── SECURITY_REPORT.md   # アプリ安全性レポート
-├── codechecker/         # アプリケーションソースコード
-├── web/                 # 完全ローカルWebアセット
+├── codechecker/         # アプリケーションソースコード (公式APIモジュール含む)
+├── web/                 # 完全ローカル化されたフロントエンドアセット
 ├── docs/                # ドキュメント一式
-└── samples/             # 動作検証・学習用サンプルコード (py, zip, exe, dll)
+└── samples/             # サンプルコードおよびテスト用バイナリ
 ```
 
 ---
 
-## 3. 現行バッチファイル & スクリプトの仕様
+## 3. 単体テストによる品質保証
 
-### `run.bat` (通常起動・自己修復機能付き)
-1. **文字コード設定**: 日本語Windows環境での文字化けを防ぐため `chcp 65001` (UTF-8) を指定。
-2. **Pythonの検出**: `where python` コマンドで実行環境の有無を確認し、未導入の場合は案内を表示して一時停止。
-3. **自己修復機能**: 依存ライブラリ（`pywebview`, `semgrep`, `pefile` 等）が未導入の場合は自動的に `pip install -r requirements.txt` を実行。
-4. **起動**: `python main.py` を呼び出し、異常終了時はエラーコードを表示して画面を閉じずに一時停止。
+配布パッケージ作成前および更新時には、必ず以下の単体テストを実行して品質と安全性を検証します：
 
-### `run_silent.vbs` (サイレント起動)
-- `WScript.Shell` の `Run` メソッドを用い、ウィンドウ非表示スタイル（`0`）で `python main.py` を起動。コンソール黒画面を表示させずにネイティブアプリ感覚で起動できます。
+```bash
+python -m unittest discover -s tests -v
+```
 
----
-
-## 4. 配布可能なパッケージ化への検討（ネクストステップ）
-
-ユーザー環境に Python や開発者ツールが存在しない場合でも、ダブルクリックのみで即座に動作する「完全自己完結型パッケージ」の実現に向けて、以下の3つのパッケージング方式を検討対象とします。
-
-### パッケージング方式の比較検討
-
-| 方式 | 構成概要 | メリット | 課題・検討事項 |
-| :--- | :--- | :--- | :--- |
-| **方式A: 公式 Embeddable Python 同梱パッケージ**<br>*(推奨度: 高)* | Windows公式の「Python Embeddable zip」をアプリフォルダ内（`python/`）に同梱し、専用のランチャーバッチまたはexeから起動 | ・ユーザーPCのPython有無に依存しない<br>・PyInstaller特有の起動オーバーヘッドやアンチウイルス誤検知を回避可能<br>・完全ポータブルで保守が最も容易 | ・配布ZIPサイズが約50〜80MB程度増加する<br>・同梱Python環境への事前 `pip` パッケージインストール手順をビルドスクリプト化する必要がある |
-| **方式B: 単一実行ファイル化 (PyInstaller / Nuitka)** | Pythonインタプリタ、スクリプト、ライブラリ、Webアセットを単一の `CodeChecker.exe` に凝縮 | ・単一の `.exe` ファイルのみで配布可能<br>・最も直感的なUX | ・起動時の一時フォルダ展開に数秒の遅延が発生する場合がある<br>・Windows DefenderやEDRによる誤検知（False Positive）リスク<br>・Semgrep CLIバイナリやルール定義の同梱パス解決の検証が必要 |
-| **方式C: Windows インストーラー (Inno Setup / WiX)** | 方式Aまたは方式Bの成果物をインストーラー形式（`.msi` または `setup.exe`）にパッケージング | ・スタートメニューやデスクトップショートカットの自動作成<br>・アンインストーラーの提供 | ・「ポータブル（解凍するだけで使える）」要件との棲み分けをどうするか |
-
----
-
-## 5. パッケージ化に向けた技術的確認項目
-
-1. **Semgrep のオフライン・スタンドアロン実行**:
-   - パッケージ同梱環境において、Semgrep がインターネット接続なしで内蔵ルールおよび標準ルールセットを正しくロード・実行できるか。
-2. **Microsoft Edge WebView2 ランタイムの検出**:
-   - Windows 10/11 では WebView2 が標準搭載されていますが、万一ランタイムが存在しない環境での検知とインストール案内ダイアログの表示処理。
-3. **ローカルLLM / CLI 連携のパス解決**:
-   - 同梱環境下から `http://localhost:11434`（Ollama）への通信および、システム環境変数 `PATH` にある `codex` コマンドの正常呼び出し確認。
-4. **一時フォルダクリーンアップの保証**:
-   - パッケージ化後も `.temp/` 配下に作成されるZIP展開ファイルやCLI隔離サンドボックスが確実に消去されることの確認。
+- **全47テストケース**: スキャンエンジン、Zip Bomb/Slip防御、CLIサンドボックス隔離、各種公式APIプロバイダ（OpenAI/Anthropic/Gemini）のリクエスト・レスポンス検証、APIキーマスキング等を約0.25秒で網羅検証します。
