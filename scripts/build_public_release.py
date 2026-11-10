@@ -1,5 +1,6 @@
 import os
 import sys
+import json
 import shutil
 import zipfile
 import urllib.request
@@ -20,72 +21,91 @@ def build_public_release():
     print(f"出力先ディレクトリ: {target_dir}")
 
     # 1. release_public の初期化
-    if os.path.exists(target_dir):
-        print("[1/7] 既存の release_public フォルダをクリーンアップ中...")
-        shutil.rmtree(target_dir)
     os.makedirs(target_dir, exist_ok=True)
-
     python_dir = os.path.join(target_dir, "python")
-    os.makedirs(python_dir, exist_ok=True)
-
-    # 2. Embeddable Python の取得
-    local_zip_path = os.path.join(temp_dir, PYTHON_ZIP_NAME)
-    if not os.path.exists(local_zip_path) or os.path.getsize(local_zip_path) < 5 * 1024 * 1024:
-        print(f"[2/7] Python Embeddable パッケージをダウンロード中...\n      URL: {PYTHON_EMBED_URL}")
-        urllib.request.urlretrieve(PYTHON_EMBED_URL, local_zip_path)
-        print(f"      ダウンロード完了 ({os.path.getsize(local_zip_path):,} bytes)")
-    else:
-        print(f"[2/7] キャッシュされた Python Embeddable を使用: {local_zip_path}")
-
-    # 3. Python の展開
-    print("[3/7] Embeddable Python を展開中...")
-    with zipfile.ZipFile(local_zip_path, "r") as zf:
-        zf.extractall(python_dir)
-
-    # 4. python310._pth のパッチ適用 (site-packages & 相対パス有効化)
-    print("[4/7] python310._pth を設定中 (site-packages 有効化)...")
-    pth_file = os.path.join(python_dir, "python310._pth")
-    if os.path.exists(pth_file):
-        with open(pth_file, "w", encoding="utf-8") as f:
-            f.write("python310.zip\n")
-            f.write(".\n")
-            f.write("Lib\\site-packages\n")
-            f.write("..\n")
-            f.write("import site\n")
-
-    # 5. 依存パッケージのインストール (Lib/site-packages 配下に展開)
     site_packages_dir = os.path.join(python_dir, "Lib", "site-packages")
-    os.makedirs(site_packages_dir, exist_ok=True)
-    req_file = os.path.join(base_dir, "requirements.txt")
+    has_valid_python = (
+        os.path.exists(os.path.join(python_dir, "python.exe")) and
+        os.path.exists(site_packages_dir) and
+        len(os.listdir(site_packages_dir)) > 0
+    )
 
-    print("[5/7] 依存ライブラリを同梱Python環境にインストール中 (pip target)...")
-    cmd = [
-        sys.executable, "-m", "pip", "install",
-        "--target", site_packages_dir,
-        "-r", req_file,
-        "--no-user"
-    ]
-    res = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8")
-    if res.returncode != 0:
-        print(f"[ERROR] pip install 失敗:\n{res.stderr}")
-        raise RuntimeError("依存パッケージのインストールに失敗しました")
-    print("      ライブラリのインストール完了")
+    if has_valid_python:
+        print("[1-5/7] 既存の Embeddable Python 環境を検出しました。再利用します。")
+    else:
+        print("[1/7] Embeddable Python 環境を初期化中...")
+        if os.path.exists(python_dir):
+            shutil.rmtree(python_dir)
+        os.makedirs(python_dir, exist_ok=True)
+
+        # 2. Embeddable Python の取得
+        local_zip_path = os.path.join(temp_dir, PYTHON_ZIP_NAME)
+        if not os.path.exists(local_zip_path) or os.path.getsize(local_zip_path) < 5 * 1024 * 1024:
+            print(f"[2/7] Python Embeddable パッケージをダウンロード中...\n      URL: {PYTHON_EMBED_URL}")
+            urllib.request.urlretrieve(PYTHON_EMBED_URL, local_zip_path)
+            print(f"      ダウンロード完了 ({os.path.getsize(local_zip_path):,} bytes)")
+        else:
+            print(f"[2/7] キャッシュされた Python Embeddable を使用: {local_zip_path}")
+
+        # 3. Python の展開
+        print("[3/7] Embeddable Python を展開中...")
+        with zipfile.ZipFile(local_zip_path, "r") as zf:
+            zf.extractall(python_dir)
+
+        # 4. python310._pth のパッチ適用 (site-packages & 相対パス有効化)
+        print("[4/7] python310._pth を設定中 (site-packages 有効化)...")
+        pth_file = os.path.join(python_dir, "python310._pth")
+        if os.path.exists(pth_file):
+            with open(pth_file, "w", encoding="utf-8") as f:
+                f.write("python310.zip\n")
+                f.write(".\n")
+                f.write("Lib\\site-packages\n")
+                f.write("..\n")
+                f.write("import site\n")
+
+        # 5. 依存パッケージのインストール (Lib/site-packages 配下に展開)
+        os.makedirs(site_packages_dir, exist_ok=True)
+        req_file = os.path.join(base_dir, "requirements.txt")
+
+        print("[5/7] 依存ライブラリを同梱Python環境にインストール中 (pip target)...")
+        cmd = [
+            sys.executable, "-m", "pip", "install",
+            "--target", site_packages_dir,
+            "-r", req_file,
+            "--no-user"
+        ]
+        res = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8")
+        if res.returncode != 0:
+            print(f"[WARN] pip install 失敗 (オフラインまたはネットワーク制約):\n{res.stderr}")
+            # フォールバック: ホストの site-packages から依存ライブラリをコピー
+            host_sp = os.path.join(os.path.dirname(sys.executable), "Lib", "site-packages")
+            if os.path.exists(host_sp):
+                print(f"      ホスト環境 ({host_sp}) からライブラリをフォールバック同期中...")
+                for item in os.listdir(host_sp):
+                    src_item = os.path.join(host_sp, item)
+                    dst_item = os.path.join(site_packages_dir, item)
+                    if not os.path.exists(dst_item):
+                        if os.path.isdir(src_item):
+                            shutil.copytree(src_item, dst_item)
+                        else:
+                            shutil.copy2(src_item, dst_item)
+                print("      ホスト環境からのフォールバック同期完了")
+            else:
+                raise RuntimeError("依存パッケージのインストールに失敗しました")
+        else:
+            print("      ライブラリのインストール完了")
 
     # 6. アプリケーションコード & アセットのコピー
     print("[6/7] CodeChecker のコードおよびアセットをコピー中...")
-    shutil.copytree(
-        os.path.join(base_dir, "codechecker"),
-        os.path.join(target_dir, "codechecker"),
-        ignore=shutil.ignore_patterns("__pycache__", "*.pyc")
-    )
-    shutil.copytree(
-        os.path.join(base_dir, "web"),
-        os.path.join(target_dir, "web")
-    )
-    shutil.copytree(
-        os.path.join(base_dir, "docs"),
-        os.path.join(target_dir, "docs")
-    )
+    for mod_name in ["codechecker", "web", "docs"]:
+        target_mod = os.path.join(target_dir, mod_name)
+        if os.path.exists(target_mod):
+            shutil.rmtree(target_mod)
+        shutil.copytree(
+            os.path.join(base_dir, mod_name),
+            target_mod,
+            ignore=shutil.ignore_patterns("__pycache__", "*.pyc")
+        )
 
     # サンプルファイル
     samples_dir = os.path.join(target_dir, "samples")
@@ -108,6 +128,20 @@ def build_public_release():
         src_path = os.path.join(base_dir, fname)
         if os.path.exists(src_path):
             shutil.copy2(src_path, os.path.join(target_dir, fname))
+
+    # 配布用 settings.json から個人APIキーをサニタイズ除去 (ポータブル配布時の秘密情報漏洩防止)
+    pub_settings = os.path.join(target_dir, "settings.json")
+    if os.path.exists(pub_settings):
+        try:
+            with open(pub_settings, "r", encoding="utf-8") as f:
+                sdata = json.load(f)
+            if "apis" in sdata:
+                for k in sdata["apis"]:
+                    sdata["apis"][k]["api_key"] = ""
+            with open(pub_settings, "w", encoding="utf-8") as f:
+                json.dump(sdata, f, indent=2, ensure_ascii=False)
+        except Exception as e:
+            print(f"Warning: settings.json sanitize error: {e}")
 
     # 同梱Python専用ランチャー (run.bat)
     run_bat_content = """@echo off

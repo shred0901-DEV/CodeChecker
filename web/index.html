@@ -219,6 +219,9 @@
                             <select id="ai-provider-select" class="bg-transparent text-slate-200 font-medium focus:outline-none cursor-pointer">
                                 <option value="ollama" class="bg-slate-900">Ollama (ローカル)</option>
                                 <option value="codex" class="bg-slate-900">Codex CLI</option>
+                                <option value="chatgpt" class="bg-slate-900">ChatGPT API (OpenAI)</option>
+                                <option value="claude" class="bg-slate-900">Claude API (Anthropic)</option>
+                                <option value="gemini" class="bg-slate-900">Antigravity Agent API (Google)</option>
                                 <option value="disabled" class="bg-slate-900">AI無効 (高速)</option>
                             </select>
                             <div id="ai-status-indicator" class="w-2 h-2 rounded-full bg-emerald-500" title="状態"></div>
@@ -353,7 +356,7 @@
 
             <div class="p-5 overflow-y-auto space-y-4 text-xs">
                 <p class="text-slate-400">
-                    Codex CLI の実行コマンドや指定モデル、および Ollama のホスト・モデルを設定できます。モデル名を空欄または「default」にすると、CLIツール側で設定されているデフォルトモデルが使用されます。
+                    Codex CLI の実行コマンドや指定モデル、Ollama のホスト・モデル、および各種公式 AI API (OpenAI / Anthropic / Google) の API キー・モデルを設定できます。
                 </p>
 
                 <!-- 1. Codex CLI -->
@@ -404,6 +407,92 @@
                             <select id="select-ollama-model" class="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-slate-200 text-xs focus:outline-none focus:border-indigo-500">
                                 <option value="gemma4:12b-it-q4_K_M">gemma4:12b-it-q4_K_M</option>
                             </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 3. ChatGPT API (OpenAI 公式) -->
+                <div class="border border-slate-800 rounded-xl p-3.5 bg-slate-950/40">
+                    <div class="flex items-center justify-between mb-2">
+                        <div class="flex items-center gap-2">
+                            <span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+                            <h4 class="font-bold text-slate-200 text-xs">ChatGPT API (OpenAI 公式)</h4>
+                            <span id="badge-status-chatgpt" class="px-1.5 py-0.5 rounded text-[10px] bg-slate-800 text-slate-400">未設定</span>
+                        </div>
+                        <button class="btn-test-api px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded text-[11px] border border-slate-700 transition" data-api="chatgpt">
+                            <i class="fa-solid fa-plug-circle-bolt mr-1"></i>テスト実行
+                        </button>
+                    </div>
+                    <div class="grid grid-cols-3 gap-2">
+                        <div class="col-span-2">
+                            <label class="block text-slate-400 mb-1">APIキー</label>
+                            <input id="input-api-key-chatgpt" type="password" placeholder="sk-..." class="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-slate-200 font-mono text-xs focus:outline-none focus:border-indigo-500">
+                        </div>
+                        <div>
+                            <label class="block text-slate-400 mb-1">指定モデル (手入力可)</label>
+                            <input id="input-model-chatgpt" type="text" list="list-models-chatgpt" value="gpt-4o-mini" class="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-slate-200 font-mono text-xs focus:outline-none focus:border-indigo-500">
+                            <datalist id="list-models-chatgpt">
+                                <option value="gpt-4o-mini">gpt-4o-mini (高速・経済的)</option>
+                                <option value="gpt-4o">gpt-4o (高精度)</option>
+                                <option value="o3-mini">o3-mini (推論)</option>
+                            </datalist>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 4. Claude API (Anthropic 公式) -->
+                <div class="border border-slate-800 rounded-xl p-3.5 bg-slate-950/40">
+                    <div class="flex items-center justify-between mb-2">
+                        <div class="flex items-center gap-2">
+                            <span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
+                            <h4 class="font-bold text-slate-200 text-xs">Claude API (Anthropic 公式)</h4>
+                            <span id="badge-status-claude" class="px-1.5 py-0.5 rounded text-[10px] bg-slate-800 text-slate-400">未設定</span>
+                        </div>
+                        <button class="btn-test-api px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded text-[11px] border border-slate-700 transition" data-api="claude">
+                            <i class="fa-solid fa-plug-circle-bolt mr-1"></i>テスト実行
+                        </button>
+                    </div>
+                    <div class="grid grid-cols-3 gap-2">
+                        <div class="col-span-2">
+                            <label class="block text-slate-400 mb-1">APIキー</label>
+                            <input id="input-api-key-claude" type="password" placeholder="sk-ant-..." class="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-slate-200 font-mono text-xs focus:outline-none focus:border-indigo-500">
+                        </div>
+                        <div>
+                            <label class="block text-slate-400 mb-1">指定モデル (手入力可)</label>
+                            <input id="input-model-claude" type="text" list="list-models-claude" value="claude-3-7-sonnet-20250219" class="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-slate-200 font-mono text-xs focus:outline-none focus:border-indigo-500">
+                            <datalist id="list-models-claude">
+                                <option value="claude-3-7-sonnet-20250219">claude-3-7-sonnet-20250219 (高精度・最新)</option>
+                                <option value="claude-3-5-haiku-20241022">claude-3-5-haiku-20241022 (高速・軽量)</option>
+                            </datalist>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 5. Antigravity Agent API (Google Gemini 公式) -->
+                <div class="border border-slate-800 rounded-xl p-3.5 bg-slate-950/40">
+                    <div class="flex items-center justify-between mb-2">
+                        <div class="flex items-center gap-2">
+                            <span class="w-2.5 h-2.5 rounded-full bg-sky-500"></span>
+                            <h4 class="font-bold text-slate-200 text-xs">Antigravity Agent API (Google 公式)</h4>
+                            <span id="badge-status-gemini" class="px-1.5 py-0.5 rounded text-[10px] bg-slate-800 text-slate-400">未設定</span>
+                        </div>
+                        <button class="btn-test-api px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded text-[11px] border border-slate-700 transition" data-api="gemini">
+                            <i class="fa-solid fa-plug-circle-bolt mr-1"></i>テスト実行
+                        </button>
+                    </div>
+                    <div class="grid grid-cols-3 gap-2">
+                        <div class="col-span-2">
+                            <label class="block text-slate-400 mb-1">APIキー</label>
+                            <input id="input-api-key-gemini" type="password" placeholder="AIzaSy..." class="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-slate-200 font-mono text-xs focus:outline-none focus:border-indigo-500">
+                        </div>
+                        <div>
+                            <label class="block text-slate-400 mb-1">指定モデル (手入力可)</label>
+                            <input id="input-model-gemini" type="text" list="list-models-gemini" value="gemini-3.8-flash" class="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-slate-200 font-mono text-xs focus:outline-none focus:border-indigo-500">
+                            <datalist id="list-models-gemini">
+                                <option value="gemini-3.8-flash">gemini-3.8-flash (高速・推奨)</option>
+                                <option value="gemini-3.8-pro">gemini-3.8-pro (最高精度)</option>
+                                <option value="gemini-2.5-flash">gemini-2.5-flash</option>
+                            </datalist>
                         </div>
                     </div>
                 </div>

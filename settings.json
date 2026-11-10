@@ -9,5 +9,19 @@
       "command": "codex exec --sandbox read-only --ephemeral --skip-git-repo-check -",
       "selected_model": "default"
     }
+  },
+  "apis": {
+    "chatgpt": {
+      "api_key": "",
+      "selected_model": "gpt-4o-mini"
+    },
+    "claude": {
+      "api_key": "",
+      "selected_model": "claude-3-7-sonnet-20250219"
+    },
+    "gemini": {
+      "api_key": "",
+      "selected_model": "gemini-3.8-flash"
+    }
   }
 }

@@ -3,6 +3,7 @@ import json
 from typing import Dict, Any, List, Optional
 from .ollama_provider import OllamaProvider
 from .cli_provider import DedicatedCLIProvider
+from .api_providers import OpenAIProvider, AnthropicProvider, GeminiProvider
 
 def get_app_dir() -> str:
     """アプリケーションルートディレクトリの絶対パスを取得"""
@@ -10,12 +11,17 @@ def get_app_dir() -> str:
     return os.path.dirname(os.path.dirname(current_dir))
 
 class AIManager:
-    """AI プロバイダ管理マネージャー (Ollama / Codex / AI無効)"""
+    """AI プロバイダ管理マネージャー (Ollama / Codex / ChatGPT API / Claude API / Antigravity Agent API / AI無効)"""
 
     def __init__(self):
         self.active_provider: str = "ollama"
         self.ollama = OllamaProvider()
         self.cli_manager = DedicatedCLIProvider()
+        self.api_providers = {
+            "chatgpt": OpenAIProvider(model_name="gpt-4o-mini"),
+            "claude": AnthropicProvider(model_name="claude-3-7-sonnet-20250219"),
+            "gemini": GeminiProvider(model_name="gemini-3.8-flash")
+        }
         self._cache: Dict[str, Dict[str, Any]] = {}
         self.settings_file = os.path.join(get_app_dir(), "settings.json")
         self.load_settings()
@@ -41,6 +47,15 @@ class AIManager:
                         self.update_cli_command(cli_id, cdata["command"], save=False)
                     if "selected_model" in cdata:
                         self.set_cli_model(cli_id, cdata["selected_model"], save=False)
+            if "apis" in data:
+                for api_id, adata in data["apis"].items():
+                    if api_id in self.api_providers:
+                        self.update_api_settings(
+                            api_id=api_id,
+                            api_key=adata.get("api_key"),
+                            model=adata.get("selected_model"),
+                            save=False
+                        )
         except Exception as e:
             print(f"[AIManager] settings.json 読み込み失敗: {e}")
 
@@ -59,6 +74,13 @@ class AIManager:
                         "selected_model": v.get("selected_model", "default")
                     }
                     for k, v in self.cli_manager.profiles.items()
+                },
+                "apis": {
+                    k: {
+                        "api_key": v.api_key,
+                        "selected_model": v.model_name or (v.list_models()[0] if v.list_models() else "")
+                    }
+                    for k, v in self.api_providers.items()
                 }
             }
             with open(self.settings_file, "w", encoding="utf-8") as f:
@@ -67,7 +89,7 @@ class AIManager:
             print(f"[AIManager] settings.json 保存失敗: {e}")
 
     def set_provider(self, provider_id: str, save: bool = True):
-        valid_providers = ["ollama", "codex", "disabled"]
+        valid_providers = ["ollama", "codex", "chatgpt", "claude", "gemini", "disabled"]
         if provider_id not in valid_providers:
             provider_id = "ollama"
         prev = self.active_provider
@@ -96,6 +118,27 @@ class AIManager:
         if save:
             self.save_settings()
 
+    def update_api_settings(self, api_id: str, api_key: Optional[str] = None, model: Optional[str] = None, save: bool = True):
+        """APIキーおよび使用モデルを更新"""
+        if api_id in self.api_providers:
+            prov = self.api_providers[api_id]
+            if api_key is not None:
+                # 前後の空白をトリム
+                key_clean = api_key.strip()
+                # フロントエンドからのマスキング文字列 ("sk-...****" や 空文字列など) で既存キーを誤上書きしない保護
+                if key_clean and not key_clean.startswith(("••••", "****")):
+                    prov.api_key = key_clean
+            if model:
+                prov.model_name = model.strip()
+            if save:
+                self.save_settings()
+
+    def test_api(self, api_id: str) -> Dict[str, Any]:
+        """指定のAPI接続テストを実行"""
+        if api_id in self.api_providers:
+            return self.api_providers[api_id].test_connection()
+        return {"success": False, "message": f"未知のAPIプロバイダです: {api_id}"}
+
     def test_cli(self, cli_id: str) -> Dict[str, Any]:
         return self.cli_manager.test_cli(cli_id)
 
@@ -111,6 +154,9 @@ class AIManager:
                 if detected:
                     return detected
             return sel
+        elif self.active_provider in self.api_providers:
+            prov = self.api_providers[self.active_provider]
+            return prov.model_name or (prov.list_models()[0] if prov.list_models() else "default")
         return "N/A"
 
     def get_status(self) -> Dict[str, Any]:
@@ -120,10 +166,25 @@ class AIManager:
 
         cli_profiles = self.cli_manager.get_all_profiles()
 
+        api_profiles = {}
+        for k, v in self.api_providers.items():
+            masked = ""
+            if v.api_key:
+                masked = f"{v.api_key[:4]}...{v.api_key[-4:]}" if len(v.api_key) >= 10 else "••••••••"
+            api_profiles[k] = {
+                "available": v.is_available(),
+                "selected_model": v.model_name or (v.list_models()[0] if v.list_models() else ""),
+                "models": v.list_models(),
+                "has_key": bool(v.api_key),
+                "masked_key": masked
+            }
+
         if self.active_provider == "ollama":
             active_available = ollama_avail
         elif self.active_provider in cli_profiles:
             active_available = cli_profiles[self.active_provider]["available"]
+        elif self.active_provider in self.api_providers:
+            active_available = self.api_providers[self.active_provider].is_available()
         else:
             active_available = False
 
@@ -137,7 +198,8 @@ class AIManager:
                 "selected_model": self.ollama.model_name,
                 "models": ollama_models
             },
-            "clis": cli_profiles
+            "clis": cli_profiles,
+            "apis": api_profiles
         }
 
     def explain_finding(self, finding: Dict[str, Any], provider: Optional[str] = None, force: bool = False) -> Dict[str, Any]:
@@ -159,7 +221,7 @@ class AIManager:
 
         if self.active_provider == "disabled":
             return {
-                "text": "AI解説機能はオフになっています。上部の選択メニューから Ollama または Codex CLI を選択してください。",
+                "text": "AI解説機能はオフになっています。上部の選択メニューから Ollama、Codex CLI または各種公式APIを選択してください。",
                 "provider": "disabled",
                 "model": "none"
             }
@@ -174,6 +236,10 @@ class AIManager:
 
         elif self.active_provider == "codex":
             text = self.cli_manager.generate_explanation(finding, context_code, cli_id="codex")
+
+        elif self.active_provider in self.api_providers:
+            prov = self.api_providers[self.active_provider]
+            text = prov.generate_explanation(finding, context_code)
 
         else:
             text = f"未対応のプロバイダです: {self.active_provider}"

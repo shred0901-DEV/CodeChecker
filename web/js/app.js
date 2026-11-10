@@ -76,6 +76,16 @@ const elements = {
     detectedModelCodex: document.getElementById('detected-model-codex'),
     badgeStatusOllama: document.getElementById('badge-status-ollama'),
     badgeStatusCodex: document.getElementById('badge-status-codex'),
+    // 公式AI API
+    inputApiKeyChatgpt: document.getElementById('input-api-key-chatgpt'),
+    inputModelChatgpt: document.getElementById('input-model-chatgpt'),
+    badgeStatusChatgpt: document.getElementById('badge-status-chatgpt'),
+    inputApiKeyClaude: document.getElementById('input-api-key-claude'),
+    inputModelClaude: document.getElementById('input-model-claude'),
+    badgeStatusClaude: document.getElementById('badge-status-claude'),
+    inputApiKeyGemini: document.getElementById('input-api-key-gemini'),
+    inputModelGemini: document.getElementById('input-model-gemini'),
+    badgeStatusGemini: document.getElementById('badge-status-gemini'),
     // レポートモーダル
     btnExport: document.getElementById('btn-export'),
     exportModal: document.getElementById('export-modal'),
@@ -87,6 +97,9 @@ const elements = {
 const providerNames = {
     'ollama': 'Ollama',
     'codex': 'Codex CLI',
+    'chatgpt': 'ChatGPT API',
+    'claude': 'Claude API',
+    'gemini': 'Antigravity Agent API',
     'disabled': 'AI無効'
 };
 
@@ -151,6 +164,31 @@ async function initAiStatus() {
             elements.selectOllamaModel.appendChild(opt);
         }
 
+        // 公式APIステータス反映
+        if (status.apis) {
+            if (status.apis.chatgpt) {
+                elements.inputModelChatgpt.value = status.apis.chatgpt.selected_model || "gpt-4o-mini";
+                updateApiBadge(elements.badgeStatusChatgpt, status.apis.chatgpt.has_key, status.apis.chatgpt.masked_key);
+                if (status.apis.chatgpt.has_key) {
+                    elements.inputApiKeyChatgpt.placeholder = `設定済み (${status.apis.chatgpt.masked_key})`;
+                }
+            }
+            if (status.apis.claude) {
+                elements.inputModelClaude.value = status.apis.claude.selected_model || "claude-3-7-sonnet-20250219";
+                updateApiBadge(elements.badgeStatusClaude, status.apis.claude.has_key, status.apis.claude.masked_key);
+                if (status.apis.claude.has_key) {
+                    elements.inputApiKeyClaude.placeholder = `設定済み (${status.apis.claude.masked_key})`;
+                }
+            }
+            if (status.apis.gemini) {
+                elements.inputModelGemini.value = status.apis.gemini.selected_model || "gemini-3.8-flash";
+                updateApiBadge(elements.badgeStatusGemini, status.apis.gemini.has_key, status.apis.gemini.masked_key);
+                if (status.apis.gemini.has_key) {
+                    elements.inputApiKeyGemini.placeholder = `設定済み (${status.apis.gemini.masked_key})`;
+                }
+            }
+        }
+
         updateAiIndicator();
     } catch (e) {
         console.error("AIステータス取得失敗:", e);
@@ -165,6 +203,19 @@ function updateCliBadge(badgeEl, isAvailable) {
     } else {
         badgeEl.textContent = '未検出';
         badgeEl.className = 'px-1.5 py-0.5 rounded text-[10px] bg-slate-800 text-slate-500';
+    }
+}
+
+function updateApiBadge(badgeEl, hasKey, maskedKey) {
+    if (!badgeEl) return;
+    if (hasKey) {
+        badgeEl.textContent = '設定済み';
+        badgeEl.className = 'px-1.5 py-0.5 rounded text-[10px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30';
+        badgeEl.title = maskedKey ? `登録中: ${maskedKey}` : '設定済み';
+    } else {
+        badgeEl.textContent = '未設定';
+        badgeEl.className = 'px-1.5 py-0.5 rounded text-[10px] bg-slate-800 text-slate-500';
+        badgeEl.title = 'APIキーが未設定です';
     }
 }
 
@@ -184,15 +235,24 @@ function updateAiIndicator() {
 
     let isAvailable = false;
     let modelName = '';
+    let notAvailableMsg = '未検出 (設定をご確認ください)';
+
     if (provider === 'ollama') {
         isAvailable = state.aiStatus.ollama?.available;
         modelName = state.aiStatus.ollama?.selected_model || '';
+        notAvailableMsg = 'サーバー未検出 (Ollama起動を確認してください)';
     } else if (state.aiStatus.clis && state.aiStatus.clis[provider]) {
         const cliInfo = state.aiStatus.clis[provider];
         isAvailable = cliInfo.available;
         modelName = (cliInfo.selected_model && cliInfo.selected_model !== 'default')
             ? cliInfo.selected_model
             : (cliInfo.detected_model || 'default');
+        notAvailableMsg = 'コマンド未検出 (設定をご確認ください)';
+    } else if (state.aiStatus.apis && state.aiStatus.apis[provider]) {
+        const apiInfo = state.aiStatus.apis[provider];
+        isAvailable = apiInfo.available;
+        modelName = apiInfo.selected_model || '';
+        notAvailableMsg = 'APIキー未設定 (設定画面で入力してください)';
     }
 
     const pLabel = providerNames[provider] || provider;
@@ -203,7 +263,7 @@ function updateAiIndicator() {
         ind.title = `${pLabel} 利用可能${mLabel}`;
     } else {
         ind.className = 'w-2 h-2 rounded-full bg-amber-500';
-        ind.title = `${pLabel} コマンド未検出 (設定をご確認ください)`;
+        ind.title = `${pLabel} ${notAvailableMsg}`;
     }
 }
 
@@ -374,6 +434,30 @@ function setupEventListeners() {
                 await saveSettingsQuiet();
                 const res = await api.test_cli(cliId);
                 alert(`[${cliId.toUpperCase()} 接続テスト]\n${res.message}`);
+            } catch (err) {
+                alert(`テスト実行エラー: ${err}`);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fa-solid fa-plug-circle-bolt mr-1"></i>テスト実行';
+                await initAiStatus();
+            }
+        });
+    });
+
+    document.querySelectorAll('.btn-test-api').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            const apiId = btn.getAttribute('data-api');
+            const api = getApi();
+            if (!api) return;
+
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i>テスト中...';
+
+            try {
+                await saveSettingsQuiet();
+                const res = await api.test_api(apiId);
+                const pLabel = providerNames[apiId] || apiId;
+                alert(`[${pLabel} 接続テスト]\n${res.message}`);
             } catch (err) {
                 alert(`テスト実行エラー: ${err}`);
             } finally {
@@ -950,12 +1034,32 @@ async function saveSettingsQuiet() {
                 command: elements.inputCliCodex.value,
                 selected_model: elements.inputModelCodex.value
             }
+        },
+        apis: {
+            chatgpt: {
+                api_key: elements.inputApiKeyChatgpt.value.trim(),
+                selected_model: elements.inputModelChatgpt.value.trim()
+            },
+            claude: {
+                api_key: elements.inputApiKeyClaude.value.trim(),
+                selected_model: elements.inputModelClaude.value.trim()
+            },
+            gemini: {
+                api_key: elements.inputApiKeyGemini.value.trim(),
+                selected_model: elements.inputModelGemini.value.trim()
+            }
         }
     };
 
     const updated = await api.update_ai_settings(payload);
     state.aiStatus = updated;
-    updateAiIndicator();
+    
+    // 入力されたAPIキー欄をクリアしてプレースホルダーを更新
+    if (elements.inputApiKeyChatgpt.value) elements.inputApiKeyChatgpt.value = '';
+    if (elements.inputApiKeyClaude.value) elements.inputApiKeyClaude.value = '';
+    if (elements.inputApiKeyGemini.value) elements.inputApiKeyGemini.value = '';
+
+    await initAiStatus();
 }
 
 async function exportReport(format) {

@@ -340,11 +340,23 @@ class AppAPI:
             if "selected_model" in cli_data:
                 self.ai.set_cli_model(cli_id, cli_data["selected_model"])
 
+        apis_settings = settings.get("apis", {})
+        for api_id, api_data in apis_settings.items():
+            self.ai.update_api_settings(
+                api_id=api_id,
+                api_key=api_data.get("api_key"),
+                model=api_data.get("selected_model")
+            )
+
         return self.ai.get_status()
 
     def test_cli(self, cli_id: str) -> Dict[str, Any]:
         """指定のCLI導通テストを実行"""
         return self.ai.test_cli(cli_id)
+
+    def test_api(self, api_id: str) -> Dict[str, Any]:
+        """指定のAPI接続テストを実行"""
+        return self.ai.test_api(api_id)
 
     def export_report(self, format_type: str = "markdown") -> Dict[str, Any]:
         """スキャン結果レポートをファイルに保存 (タプル返却対応)"""

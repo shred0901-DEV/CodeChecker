@@ -1,4 +1,5 @@
 import os
+import json
 import shutil
 import zipfile
 
@@ -54,6 +55,20 @@ def build_release():
         src_path = os.path.join(base_dir, fname)
         if os.path.exists(src_path):
             shutil.copy2(src_path, os.path.join(release_dir, fname))
+
+    # 配布用 settings.json から個人APIキーをサニタイズ除去 (ポータブル配布時の秘密情報漏洩防止)
+    release_settings = os.path.join(release_dir, "settings.json")
+    if os.path.exists(release_settings):
+        try:
+            with open(release_settings, "r", encoding="utf-8") as f:
+                sdata = json.load(f)
+            if "apis" in sdata:
+                for k in sdata["apis"]:
+                    sdata["apis"][k]["api_key"] = ""
+            with open(release_settings, "w", encoding="utf-8") as f:
+                json.dump(sdata, f, indent=2, ensure_ascii=False)
+        except Exception as e:
+            print(f"Warning: settings.json sanitize error: {e}")
 
     # 安全性レポートを release フォルダ直下にも配置
     sec_report_src = os.path.join(base_dir, "docs", "SECURITY_REPORT.md")
