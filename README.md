@@ -10,9 +10,36 @@
 ![Claude](https://img.shields.io/badge/Claude%20API-ready-amber.svg)
 ![Gemini](https://img.shields.io/badge/Antigravity%20Agent%20API-ready-sky.svg)
 
-CodeChecker は、ソースコードおよび Windows 実行バイナリ（EXE/DLL）のセキュリティ脆弱性を静的解析（SAST）と AI（ローカルLLM / ローカルCLI / 各種クラウド公式API）のハイブリッド方式で検出し、具体的な修正コード・設定変更案を提示する完全オフライン・ポータブル対応のデスクトップアプリケーションです。
+CodeChecker は、ソースコードおよび Windows 実行バイナリ（EXE/DLL）のセキュリティ脆弱性を静的解析（SAST）と AI（ローカルLLM / Codex CLI / 各種クラウド公式API）のハイブリッド方式で検出し、具体的な修正コード・設定変更案を提示する完全オフライン・ポータブル対応のデスクトップアプリケーションです。
 
 ---
+
+## 📥 アプリのダウンロード方法
+
+**[👉 Windows専用Embedded版（Pythonインストール不要）をダウンロード](https://github.com/shred0901-DEV/CodeChecker/raw/refs/heads/main/CodeChecker_Embedded.zip)**
+
+**[👉 通常版をダウンロード](https://github.com/shred0901-DEV/CodeChecker/raw/refs/heads/main/CodeChecker.zip)**
+
+※任意のディレクトリに解凍してご利用ください。
+
+## クイックスタート (Embedded版を除く)
+
+```bash
+# 依存パッケージのインストール
+pip install -r requirements.txt
+
+# テストスイートの実行 (全47テスト)
+python -m unittest discover -s tests -v
+
+# アプリケーション起動
+python main.py
+```
+
+※ Windows 環境では、`setup.bat`で依存パッケージのインストール、`run.bat`でアプリケーションが起動できます。
+黒いコンソール画面を出さずに直接起動できる `run_silent.vbs` もご利用いただけます。
+Embedded版の場合は、基本的に`run_silent.vbs`で起動してください。
+
+Macの場合は、`setup.bat`、`run.bat`、`run_silent.vbs`が使えないので削除してください。
 
 ## 主な特徴
 
@@ -55,19 +82,3 @@ CodeChecker は、ソースコードおよび Windows 実行バイナリ（EXE/D
 - 📦 [配布およびパッケージ仕様書 (docs/DISTRIBUTION.md)](docs/DISTRIBUTION.md)
 
 ---
-
-## クイックスタート
-
-```bash
-# 依存パッケージのインストール
-pip install -r requirements.txt
-
-# テストスイートの実行 (全47テスト)
-python -m unittest discover -s tests -v
-
-# アプリケーション起動
-python main.py
-```
-
-※ Windows 環境では、黒いコンソール画面を出さずに直接起動できる `run_silent.vbs` もご利用いただけます。
-また、Pythonの事前インストールが一切不要な完全自己完結型ポータブルパッケージ（`release_public/`）も用意されています。
