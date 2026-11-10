@@ -46,3 +46,6 @@ desktop.ini
 .idea/
 *.swp
 *.swo
+
+# Internal Development Rules (外部非公開ドキュメント)
+docs/WORKFLOW_RULES.md
