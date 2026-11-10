@@ -15,6 +15,7 @@
 | **OSコマンドインジェクション** | **完全対策済み** | サブプロセス起動を `shell=False` 配列引数に徹底、標準入力（stdin）パイプ経由でコード伝達 |
 | **Codex CLI 実行安全性** | **5層多層防御** | `--sandbox read-only`、`--ephemeral`、空の隔離作業ディレクトリ、`shell=False`、プロンプト制約 |
 | **Ollama 連携安全性** | **完全ローカル保護** | `localhost:11434` 完全ローカル完結、ツール実行機能なし、`keep_alive: 0` による即時VRAM解放 |
+| **公式AI API (ChatGPT/Claude/Gemini)** | **多層安全設計 (BYOK)** | データ送信最小化(前後15行のみ)、Function Calling非搭載(自動実行排除)、公式HTTPSヘッダー認証、キー自動サニタイズ |
 | **スクリプトインジェクション (XSS)** | **完全対策済み** | DOMPurify による徹底サニタイズ、HTMLレポート出力時の `html.escape` 徹底 |
 | **悪意あるバイナリへの耐性** | **安全** | EXE/DLLを実行せず `pefile` による静的構造解析のみを実施、リソース管理徹底 |
 | **サプライチェーン・通信耐性** | **完全オフライン** | 外部CDNを全廃し全Webアセットをローカルバンドル化。閉域網・完全オフライン対応 |
@@ -30,6 +31,7 @@
 ### 2.2 データ処理の局所性とポータブル性
 - 診断対象のソースコードやEXE/DLLバイナリは、すべてローカルマシン上で静的解析（Builtin Rules / Semgrep / pefile）されます。
 - 解析用の一時展開領域は、OSの共通Tempディレクトリではなくアプリ内完結型ディレクトリ（`.temp/`）に隔離され、スキャン完了時およびアプリ終了時に安全にクリーンアップされます。
+- 設定ファイル（`settings.json`）もアプリディレクトリ内に完結して保存され、OSのレジストリやユーザープロファイルを汚染しないポータブル設計を徹底しています。
 
 ---
 
@@ -82,14 +84,32 @@
   - **即時VRAM解放（`keep_alive: 0`）**: プロバイダ切り替え時およびアプリ終了時に `unload_model()` を呼び出し、GPU VRAM/RAMを即座にOSへ返還。
   - **タイムアウト保護**: 導通確認3秒、推論240秒のタイムアウトを設定し、ハングアップを確実に防止。
 
-### (6) スクリプトインジェクション / XSS対策 (CWE-79) (SEC-01)
+### (6) 公式AI API 直接連携の安全性 (ChatGPT / Claude / Antigravity Agent) (SEC-API)
+- **対象実装**: `codechecker/ai/api_providers.py`, `codechecker/ai/manager.py`, `scripts/build_release.py`, `scripts/build_public_release.py`
+- **脅威**: クラウドAI利用時の広範なコード漏洩、プロンプトインジェクションによるファイル改ざん、APIキーの平文漏洩、不正な通信経路。
+- **対策内容（多層防御）**:
+  1. **データ送信の最小化（Information Exposure 防止）**:
+     - `_extract_context_code()` により、ファイル全体ではなく指摘箇所の**前後15行（計約30行）のスニペットのみ**を切り出して送信。
+     - PEバイナリ（EXE/DLL）では実行バイナリ実体ファイルは送信せず、静的解析が検出した脆弱性属性やルール指摘情報のみを送信。
+  2. **自動実行・ファイル改変の完全排除（No Autonomous Tool Execution）**:
+     - 巨大SDKやエージェント機能（Function Calling / Tool Use）を一切介さず、最小限の REST API（Single Turn Completion）として呼び出し。
+     - AIにローカルファイル編集・コマンド実行等の特権を与えておらず、プロンプトインジェクション攻撃を受けた場合でもOSやローカル環境への侵害は原理的に発生しません。
+  3. **通信経路の暗号化とヘッダー認証**:
+     - 各社公式エンドポイント（`api.openai.com`, `api.anthropic.com`, `generativelanguage.googleapis.com`）への直接 HTTPS 通信（TLS 1.2+）のみを使用。
+     - Gemini API において、API キーを URL クエリパラメータ（`?key=...`）に載せる脆弱な方式を廃止し、**`x-goog-api-key` HTTPヘッダー** で送信することで、プロキシログやWebサーバーログからのキー漏洩（CWE-598）を遮断。
+  4. **APIキーの保護と配布時自動サニタイズ**:
+     - UI画面上では `••••••••` または `sk-...abcd` とマスキング表示され、画面共有や覗き見による漏洩を防止。
+     - 設定保存時にキー欄が空文字の場合は既存キーを誤上書きしない保護ロジックを実装。
+     - 配布パッケージ生成スクリプト（`build_release.py`, `build_public_release.py`）により、配布先 `settings.json` の API キーを機械的に空文字化（サニタイズ）し、開発者の秘密情報の混入・公開を防止。
+
+### (7) スクリプトインジェクション / XSS対策 (CWE-79) (SEC-01)
 - **対象実装**: `web/js/app.js`, `codechecker/api.py` (`export_report`)
 - **脅威**: 悪意あるスクリプト（`<script>alert(1)</script>` や `<img onerror=...>`）が混入したコードやAI出力を描画した際、UI上でJavaScriptが不正実行される危険性。
 - **対策内容**:
-  - **DOMPurify によるサニタイズ**: Marked.jsでMarkdownをパースしたHTMLを、ローカルにバンドルされたDOMPurify（`sanitizeHtml`）で完全にサニタイズしてから画面に挿入。
+  - **DOMPurify による多層サニタイズ**: Marked.jsでMarkdownをパースしたHTMLを、ローカルにバンドルされた DOMPurify（およびフォールバック用の厳格な `DOMParser` ロジック）で完全にサニタイズしてから画面に挿入。危険タグ（`<script>`, `<iframe>` 等）やインラインイベント（`onload`, `onerror` 等）、危険スキーム（`javascript:` 等）を強制除去。
   - **HTMLレポートの完全エスケープ**: HTMLレポート出力時、Python標準の `html.escape()` ですべてのフィールド（タイトル、CWE、ファイルパス、コード、AI解説文言）を無害化。
 
-### (7) 悪意あるPEバイナリへの耐性
+### (8) 悪意あるPEバイナリへの耐性
 - **対象実装**: `codechecker/scanner/pe_scanner.py`, `codechecker/api.py`
 - **脅威**: マルウェアや破損したEXE/DLLファイルを解析した際、コードが不用意に実行されたりクラッシュする危険性。
 - **対策内容**:
@@ -97,7 +117,7 @@
   - **ファイルサイズ上限**: 100MB以上の巨大バイナリはスキップし、メモリ圧迫を防止。
   - **エクスプローラー連携**: UI上からバイナリを開く際、テキストエディタで開いてフリーズや文字化けを起こすのを防ぐため、OSエクスプローラー（`explorer.exe /select,"<パス>"`）を起動。
 
-### (8) 閉域網対応とサプライチェーン攻撃耐性 (ARC-01)
+### (9) 閉域網対応とサプライチェーン攻撃耐性 (ARC-01)
 - **対象実装**: `web/index.html`, `web/vendor/`
 - **脅威**: 外部CDN障害によるUI崩壊、または外部CDNの改ざん（サプライチェーン攻撃）による悪意あるスクリプト混入。
 - **対策内容**:
@@ -105,13 +125,22 @@
 
 ---
 
-## 4. 規約遵守・コンプライアンス対応 (CLI-01)
+## 4. 規約遵守・コンプライアンス対応 (CLI-01 / API-01)
 
-- 利用規約上、競合製品の開発・改善や外部ツールへの組み込みにおいて制限のあるCLI（Gemini CLI, Antigravity CLI, Claude Code CLI）を完全に削除。
-- 完全に許可された「Ollama（オープンソース・ローカル）」、「Codex CLI（OpenAI）」、および「AI無効モード」のみを正式サポートしています。
+- **サードパーティCLIの利用規約是正**:
+  - 第三者ツールからのアクセスや自動ラップがサポート外と規定されていた CLI（Claude Code CLI、Antigravity CLI）を完全に削除。
+- **公式REST API（BYOK）の安全な採用**:
+  - 各AIプロバイダが正式に提供する開発者向け公式 REST API（OpenAI API, Anthropic API, Google Gemini Interactions API）による直接連携へと刷新。
+- **正式サポートプロバイダ構成**:
+  1. **Ollama**: オープンソース / 完全ローカル・オフライン（規約制約なし）
+  2. **Codex CLI**: OpenAI公式CLI（`--sandbox read-only` による厳格隔離）
+  3. **ChatGPT API**: OpenAI公式 REST API (`gpt-4o`, `gpt-4o-mini`, `o3-mini`)
+  4. **Claude API**: Anthropic公式 REST API (`claude-3-7-sonnet`, `claude-3-5-haiku`)
+  5. **Antigravity Agent API**: Google公式 REST API (`gemini-3.8-flash`, `gemini-3.8-pro`, `gemini-2.5-flash`)
+  6. **AI無効モード**: 外部通信およびローカル推論を完全遮断し、高速静的解析のみを実施
 
 ---
 
 ## 5. 結論
 
-CodeChecker は、入力（ZIP展開・ファイル収集）から解析（静的ルール・バイナリ解析）、推論（Ollama / Codex CLI）、出力（Web UI描画・レポートエクスポート）に至る**全処理フローにおいて最高水準のセキュリティ対策が施されており、エンタープライズ環境や機密性の高い開発環境でも極めて安全に運用可能**であることが確認されています。
+CodeChecker は、入力（ZIP展開・ファイル収集）から解析（静的ルール・バイナリ解析）、推論（Ollama / Codex CLI / 公式REST API群）、出力（Web UI描画・レポートエクスポート）に至る**全処理フローにおいて最高水準のセキュリティ対策が施されており、エンタープライズ環境や機密性の高い開発環境でも極めて安全に運用可能**であることが確認されています。
