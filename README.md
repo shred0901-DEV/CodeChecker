@@ -78,7 +78,6 @@ Macの場合は、`setup.bat`、`run.bat`、`run_silent.vbs`が使えないの�
 - ⚙️ [技術仕様書 (docs/TECH_SPECS.md)](docs/TECH_SPECS.md)
 - 📖 [利用者マニュアル (docs/USER_GUIDE.md)](docs/USER_GUIDE.md)
 - 🛡️ [安全性評価 & 脆弱性対策レポート (SECURITY_REPORT.md)](SECURITY_REPORT.md)
-- 📋 [コード監査結果 & 作業引き継ぎ書 (docs/AUDIT_AND_HANDOVER.md)](docs/AUDIT_AND_HANDOVER.md)
 - 📦 [配布およびパッケージ仕様書 (docs/DISTRIBUTION.md)](docs/DISTRIBUTION.md)
 
 ---
