@@ -84,7 +84,7 @@
   - **即時VRAM解放（`keep_alive: 0`）**: プロバイダ切り替え時およびアプリ終了時に `unload_model()` を呼び出し、GPU VRAM/RAMを即座にOSへ返還。
   - **タイムアウト保護**: 導通確認3秒、推論240秒のタイムアウトを設定し、ハングアップを確実に防止。
 
-### (6) 公式AI API 直接連携の安全性 (ChatGPT / Claude / Antigravity Agent) (SEC-API)
+### (6) 公式AI API 直接連携の安全性 (ChatGPT / Claude / Gemini) (SEC-API)
 - **対象実装**: `codechecker/ai/api_providers.py`, `codechecker/ai/manager.py`, `scripts/build_release.py`, `scripts/build_public_release.py`
 - **脅威**: クラウドAI利用時の広範なコード漏洩、プロンプトインジェクションによるファイル改ざん、APIキーの平文漏洩、不正な通信経路。
 - **対策内容（多層防御）**:
@@ -136,7 +136,7 @@
   2. **Codex CLI**: OpenAI公式CLI（`--sandbox read-only` による厳格隔離）
   3. **ChatGPT API**: OpenAI公式 REST API (`gpt-4o`, `gpt-4o-mini`, `o3-mini`)
   4. **Claude API**: Anthropic公式 REST API (`claude-3-7-sonnet`, `claude-3-5-haiku`)
-  5. **Antigravity Agent API**: Google公式 REST API (`gemini-3.8-flash`, `gemini-3.8-pro`, `gemini-2.5-flash`)
+  5. **Gemini API**: Google公式 REST API (`gemini-3.8-flash`, `gemini-3.8-pro`, `gemini-2.5-flash`)
   6. **AI無効モード**: 外部通信およびローカル推論を完全遮断し、高速静的解析のみを実施
 
 ---

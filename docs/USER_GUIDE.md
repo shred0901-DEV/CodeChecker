@@ -55,7 +55,7 @@ CodeChecker は、ソースコードおよびWindows実行バイナリ（EXE/DLL
 | **Codex CLI** | OpenAI の `codex` コマンドを使用（自動で読み取り専用サンドボックス `--sandbox read-only`・一時セッション `--ephemeral`・隔離作業ディレクトリで安全に実行） |
 | **ChatGPT API (OpenAI)** | OpenAI公式 REST API を直接呼び出し（`gpt-4o-mini`, `gpt-4o`, `o3-mini` 等） |
 | **Claude API (Anthropic)** | Anthropic公式 REST API を直接呼び出し（`claude-3-7-sonnet-20250219`, `claude-3-5-haiku-20241022` 等） |
-| **Antigravity Agent API (Google)** | Google Gemini Interactions REST API を直接呼び出し（`gemini-3.8-flash`, `gemini-3.8-pro`, `gemini-2.5-flash` 等） |
+| **Gemini API (Google)** | Google Gemini REST API を直接呼び出し（`gemini-3.8-flash`, `gemini-3.8-pro`, `gemini-2.5-flash` 等） |
 | **AI無効 (高速)** | 外部通信やローカル推論を行わず、静的解析結果のみを瞬時に確認したい場合 |
 
 ### プロバイダ切り替えと再生成の仕様
@@ -74,7 +74,7 @@ CodeChecker は、ソースコードおよびWindows実行バイナリ（EXE/DLL
 2. **Ollama**: ホストURLの変更、インストール済みモデルの選択ドロップダウン
 3. **ChatGPT API**: APIキーの入力、指定モデル（手入力 & 推奨リストサジェスト）
 4. **Claude API**: APIキーの入力、指定モデル（手入力 & 推奨リストサジェスト）
-5. **Antigravity Agent API**: APIキーの入力、指定モデル（手入力 & 推奨リストサジェスト）
+5. **Gemini API**: APIキーの入力、指定モデル（手入力 & 推奨リストサジェスト）
 
 - **テスト実行ボタン**: 各カード右上の「テスト実行」ボタンを押すことで、その場でCLIや各APIが正常に応答するか軽量な導通テストを行えます。
 - **セキュリティ配慮**:

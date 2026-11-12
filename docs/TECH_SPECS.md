@@ -27,7 +27,7 @@ CodeChecker は以下のAI実行環境に対応しています：
 | **`codex`** | **Codex CLI** (OpenAI) | `codex exec --sandbox read-only --ephemeral --skip-git-repo-check -` | 引数リスト・`shell=False`、読み取り専用サンドボックス、セッション一時化、隔離ディレクトリ実行 |
 | **`chatgpt`** | **ChatGPT API** (OpenAI 公式) | `POST https://api.openai.com/v1/chat/completions` | `gpt-4o-mini`, `gpt-4o`, `o3-mini` 対応。Bearer認証。推論モデル対応 |
 | **`claude`** | **Claude API** (Anthropic 公式) | `POST https://api.anthropic.com/v1/messages` | `claude-3-7-sonnet-20250219`, `claude-3-5-haiku-20241022` 対応。x-api-key認証 |
-| **`gemini`** | **Antigravity Agent API** (Google 公式) | `POST https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent` | `gemini-3.8-flash`, `gemini-3.8-pro`, `gemini-2.5-flash` 対応。`x-goog-api-key` ヘッダー認証 |
+| **`gemini`** | **Gemini API** (Google 公式) | `POST https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent` | `gemini-3.8-flash`, `gemini-3.8-pro`, `gemini-2.5-flash` 対応。`x-goog-api-key` ヘッダー認証 |
 | **`disabled`**| **AI無効 (高速)** | N/A | 静的解析のみを瞬時に実行（外部通信・ローカル推論なし） |
 
 ### サブプロセス制御 & セキュリティ仕様

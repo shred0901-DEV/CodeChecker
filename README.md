@@ -7,7 +7,7 @@
 ![Codex](https://img.shields.io/badge/Codex%20CLI-ready-blue.svg)
 ![ChatGPT](https://img.shields.io/badge/ChatGPT%20API-ready-emerald.svg)
 ![Claude](https://img.shields.io/badge/Claude%20API-ready-amber.svg)
-![Gemini](https://img.shields.io/badge/Antigravity%20Agent%20API-ready-sky.svg)
+![Gemini](https://img.shields.io/badge/Gemini%20API-ready-sky.svg)
 
 CodeChecker は、ソースコードおよび Windows 実行バイナリ（EXE/DLL）のセキュリティ脆弱性を静的解析（SAST）と AI（ローカルLLM / Codex CLI / 各種クラウド公式API）のハイブリッド方式で検出し、具体的な修正コード・設定変更案を提示する完全オフライン・ポータブル対応のデスクトップアプリケーションです。
 
@@ -56,7 +56,7 @@ Macの場合は、`setup.bat`、`run.bat`、`run_silent.vbs`が使えないの�
   - **公式 AI API 直接連携 (BYOK)**:
     - **ChatGPT API (OpenAI)**: `gpt-4o-mini`, `gpt-4o`, `o3-mini` 等に対応。
     - **Claude API (Anthropic)**: `claude-3-7-sonnet-20250219`, `claude-3-5-haiku-20241022` 等に対応。
-    - **Antigravity Agent API (Google Gemini)**: `gemini-3.8-flash`, `gemini-3.8-pro`, `gemini-2.5-flash` 等に対応。ヘッダー認証（`x-goog-api-key`）によりURL経由のキー漏洩を防止。
+    - **Gemini API (Google)**: `gemini-3.8-flash`, `gemini-3.8-pro`, `gemini-2.5-flash` 等に対応。ヘッダー認証（`x-goog-api-key`）によりURL経由のキー漏洩を防止。
     - ※各APIとも Function Calling（自動実行権限）を一切排除し、指摘前後の限定スニペット（約30行）のみを送信するデータ最小化設計。
   - **AI無効モード**: 外部通信やローカル推論を行わず、静的解析結果のみを瞬時に確認可能。
 - 🌐 **完全オフライン動作（閉域網対応）**:

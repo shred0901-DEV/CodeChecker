@@ -158,7 +158,7 @@ class AnthropicProvider(BaseAPIProvider):
 
 
 class GeminiProvider(BaseAPIProvider):
-    """Antigravity Agent API (Google Gemini 公式) プロバイダ"""
+    """Gemini API (Google 公式) プロバイダ"""
     BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models"
     DEFAULT_MODELS = ["gemini-3.8-flash", "gemini-3.8-pro", "gemini-2.5-flash"]
 

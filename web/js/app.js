@@ -99,7 +99,7 @@ const providerNames = {
     'codex': 'Codex CLI',
     'chatgpt': 'ChatGPT API',
     'claude': 'Claude API',
-    'gemini': 'Antigravity Agent API',
+    'gemini': 'Gemini API',
     'disabled': 'AI無効'
 };
 

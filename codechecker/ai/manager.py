@@ -11,7 +11,7 @@ def get_app_dir() -> str:
     return os.path.dirname(os.path.dirname(current_dir))
 
 class AIManager:
-    """AI プロバイダ管理マネージャー (Ollama / Codex / ChatGPT API / Claude API / Antigravity Agent API / AI無効)"""
+    """AI プロバイダ管理マネージャー (Ollama / Codex / ChatGPT API / Claude API / Gemini API / AI無効)"""
 
     def __init__(self):
         self.active_provider: str = "ollama"

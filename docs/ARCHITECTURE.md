@@ -80,7 +80,7 @@ flowchart TB
   - 選択した脆弱性のコード箇所ハイライト表示（拡張子に応じた自動言語切替）
   - DOMPurify による安全なAI解説・修正差分の描画
   - 非同期リクエスト競合ガード（`explanationRequestId`）による表示破綻防止
-  - AIプロバイダ選択ドロップダウン（Ollama / Codex CLI / ChatGPT API / Claude API / Antigravity Agent API / AI無効）
+  - AIプロバイダ選択ドロップダウン（Ollama / Codex CLI / ChatGPT API / Claude API / Gemini API / AI無効）
   - 設定画面（モーダル）での各プロバイダ設定、APIキー入力（マスキング表示）、推奨モデルサジェスト（手入力可）、および「テスト実行」機能の提供
   - レポート（HTML/Markdown）の一括エクスポート
 
