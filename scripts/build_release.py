@@ -86,7 +86,7 @@ def build_release():
 【動作要件】
 - OS: Windows 10 / 11
 - Python 3.10 以上 (PATHが通っていること)
-- (推奨) Ollama または Codex CLI (OpenAI)
+- (推奨) Ollama、Codex CLI、または各種公式AI API (ChatGPT / Claude / Gemini)
 
 【起動方法】
 - 通常起動: 「run_silent.vbs」をダブルクリック（黒い画面を出さずに起動）
@@ -113,7 +113,25 @@ def build_release():
     with open(os.path.join(release_dir, "README.txt"), "w", encoding="utf-8") as f:
         f.write(readme_text)
 
-    print("Release build completed successfully!")
+    # 7. 配布用 ZIP アーカイブの生成 (CodeChecker.zip)
+    zip_dest = os.path.join(base_dir, "CodeChecker.zip")
+    print(f"[7/7] 配布用 ZIP アーカイブを作成中: {zip_dest}")
+    if os.path.exists(zip_dest):
+        os.remove(zip_dest)
+
+    with zipfile.ZipFile(zip_dest, "w", zipfile.ZIP_DEFLATED, compresslevel=6) as zf:
+        for root, dirs, files in os.walk(release_dir):
+            for file in files:
+                file_path = os.path.join(root, file)
+                rel_path = os.path.relpath(file_path, release_dir)
+                zf.write(file_path, rel_path)
+
+    zip_size_kb = os.path.getsize(zip_dest) / 1024
+    print(f"      ZIP 作成完了: {zip_size_kb:.2f} KB ({zip_size_kb / 1024:.2f} MB)")
+
+    print("=" * 60)
+    print("Release build & CodeChecker.zip completed successfully!")
+    print("=" * 60)
 
 if __name__ == "__main__":
     build_release()
